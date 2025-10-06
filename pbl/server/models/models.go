@@ -3,15 +3,15 @@ package models
 import (
     "sync"
 )
-
 type Server struct {
-	ID       int64
-	Port     string
-	Peers    []PeerInfo
-	IsLeader bool
-	Leader   int
-	mu       sync.RWMutex
-	electionInProgress bool
+    ID                int
+    Port              string
+    SelfURL           string
+    Peers             []PeerInfo
+    IsLeader          bool
+    Leader            int
+    Mu                sync.Mutex
+    ElectionInProgress bool
 }
 
 type Message struct {
@@ -23,4 +23,11 @@ type Message struct {
 type PeerInfo struct {
 	ID  int
 	URL string
+}
+
+type ElectionMessage struct{
+	Type string `json:"type"`
+	FromID int `json:"from_id"`     
+	FromURL string `json:"leader_id,omitempty"`
+	LeaderID int `json:"leader_id"`
 }

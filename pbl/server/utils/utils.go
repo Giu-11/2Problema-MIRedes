@@ -5,19 +5,27 @@ import (
 	"encoding/binary"
 	"fmt"
 	"net"
+	"math"
+	"bytes"
+    "encoding/json"
+    "log"
+    "net/http"
+	"pbl/server/models"
 )
 
-func GerarIdAleatorio() int64 {
-	var b [8]byte
+//Gerar um ID aleatório 
+func GerarIdAleatorio() int {
+	var b [4]byte
 	_, err := rand.Read(b[:])
 	if err != nil {
 		panic(err)
 	}
-	id := int64(binary.LittleEndian.Uint64(b[:]))
+	id := int(binary.LittleEndian.Uint32(b[:]))
 	fmt.Println("ID:", id)
-	return id
+	return int(math.Abs(float64(id)))
 }
 
+//Descobrir o IP do pc que tá rodando o servidor
 func LocalIP() (string, error) {
 ifaces, err := net.Interfaces()
 	if err != nil {
@@ -57,4 +65,22 @@ ifaces, err := net.Interfaces()
 	}
 
 	return "", fmt.Errorf("não foi possível detectar um IP local válido")
+}
+
+//Para enciar a mensagem de eleição 
+func SendElectionMessage(peerURL string, message models.ElectionMessage) {
+	data, err := json.Marshal(message)
+	if err != nil {
+		log.Printf("Erro ao codificar mensagem de eleição: %v", err)
+		return
+	}
+
+	resp, err := http.Post(peerURL+"/election", "application/json", bytes.NewBuffer(data))
+	if err != nil {
+		log.Printf("Erro ao enviar mensagem de eleição para %s: %v", peerURL, err)
+		return
+	}
+	defer resp.Body.Close()
+
+	log.Printf("Mensagem de eleição enviada para %s", peerURL)
 }
