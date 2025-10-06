@@ -7,8 +7,8 @@ import (
 	"net"
 	"math"
 	"bytes"
+	"time"
     "encoding/json"
-    "log"
     "net/http"
 	"pbl/server/models"
 )
@@ -68,19 +68,23 @@ ifaces, err := net.Interfaces()
 }
 
 //Para enciar a mensagem de eleição 
-func SendElectionMessage(peerURL string, message models.ElectionMessage) {
+func SendElectionMessage(peerURL string, message models.ElectionMessage) error {
 	data, err := json.Marshal(message)
 	if err != nil {
-		log.Printf("Erro ao codificar mensagem de eleição: %v", err)
-		return
+		return fmt.Errorf("erro ao codificar: %w", err)
 	}
 
-	resp, err := http.Post(peerURL+"/election", "application/json", bytes.NewBuffer(data))
+
+	client := &http.Client{Timeout: 5 * time.Second}
+	resp, err := client.Post(peerURL+"/election", "application/json", bytes.NewBuffer(data))
 	if err != nil {
-		log.Printf("Erro ao enviar mensagem de eleição para %s: %v", peerURL, err)
-		return
+		return fmt.Errorf("erro ao enviar POST: %w", err)
 	}
 	defer resp.Body.Close()
 
-	log.Printf("Mensagem de eleição enviada para %s", peerURL)
+	if resp.StatusCode != http.StatusOK {
+		return fmt.Errorf("status não OK: %d", resp.StatusCode)
+	}
+
+	return nil
 }

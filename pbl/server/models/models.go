@@ -12,6 +12,7 @@ type Server struct {
     Leader            int
     Mu                sync.Mutex
     ElectionInProgress bool
+    ReceivedOK bool
 }
 
 type Message struct {
@@ -28,6 +29,6 @@ type PeerInfo struct {
 type ElectionMessage struct{
 	Type string `json:"type"`
 	FromID int `json:"from_id"`     
-	FromURL string `json:"leader_id,omitempty"`
-	LeaderID int `json:"leader_id"`
+	FromURL string `json:"leader_url,omitempty"`
+	LeaderID int    `json:"leader_id"`
 }

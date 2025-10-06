@@ -8,6 +8,7 @@ import (
 	"os"
 	"strings"
 	"time"
+	"strconv"
 
 	"pbl/server/handlers"
 	"pbl/server/models"
@@ -24,9 +25,9 @@ func main() {
 
 	log.Println("IP detectado:", ip)
 
-	//Gera ID aleatório
+	/*//Gera ID aleatório
 	id := utils.GerarIdAleatorio()
-	log.Printf("ID gerado: %d", id)
+	log.Printf("ID gerado: %d", id)*/
 
 	/*//Listener em porta automática
 	serverHTTP := &http.Server{Handler: nil}
@@ -38,51 +39,77 @@ func main() {
 	log.Printf("Porta escolhida automaticamente: %s", port)
 	fmt.Println(serverHTTP)*/
 	
+	idString := os.Getenv("ID")
+	var id int
+	if idString != "" {
+		id, _ = strconv.Atoi(idString)
+	} else {
+		id = utils.GerarIdAleatorio() // Fallback
+	}
+	log.Printf("ID do servidor: %d", id)
+
+
 	port := os.Getenv("PORT")
 	if port == "" {
     	port = "8001"
 	}
 
-
-	// URL do próprio servidor
+	//URL do próprio servidor
 	selfURL := fmt.Sprintf("http://%s:%s", ip, port)
 	log.Printf("Meu URL: %s", selfURL)
 
-	// Lê peers da env
+	//Lê peers da env
 	peersEnv := os.Getenv("PEERS")
-	peers := []string{}
-	if peersEnv != "" {
-		peers = strings.Split(peersEnv, ",")
-	}
-
-	// Converte em []PeerInfo
+	//log.Printf("PEERS env: '%s'", peersEnv)
 	peerInfos := []models.PeerInfo{}
-	for i, url := range peers {
-		peerInfos = append(peerInfos, models.PeerInfo{
-			ID:  i + 1,
-			URL: url,
-		})
+	
+	if peersEnv != "" {
+		peerPairs := strings.Split(peersEnv, ",")
+		for _, pair := range peerPairs {
+			parts := strings.Split(pair, "=")
+			if len(parts) == 2 {
+				peerID, _ := strconv.Atoi(parts[0])
+				peerInfos = append(peerInfos, models.PeerInfo{
+					ID:  peerID,
+					URL: parts[1],
+				})
+			}
+		}
 	}
 
 	// Cria server
-	server := models.Server{
-		ID:    id,
-		Port:  port,
-		Peers: peerInfos,
+	server := &models.Server{
+		ID:                 id,
+		Port:               port,
+		Peers:              peerInfos,
+		SelfURL:            selfURL,
+		ElectionInProgress: false,
+		ReceivedOK:         false,
+		Leader:             0,
+		IsLeader:           false,
 	}
 
-	// Registra handler
+	//Registra handlers
 	http.HandleFunc("/ping", handlers.PingHandler(server.ID))
+	http.HandleFunc("/election", handlers.ElectionHandler(server))
 
 	log.Printf("Peers conhecidos: %+v", server.Peers)
-	time.Sleep(3 * time.Second)
-	go handlers.StartElection(&server)
+
+	time.Sleep(5 * time.Second)
+	go handlers.StartElection(server)
 
 	//Rotina de heartbeat
 	go func() {
 		for {
+			time.Sleep(5 * time.Second)
+			
+			server.Mu.Lock()
+			leader := server.Leader
+			server.Mu.Unlock()
+			
+			log.Printf("\n[%d] - Líder atual: %d", server.ID, leader)
+			
 			for _, peer := range server.Peers {
-				log.Println("Líder: ", server.Leader)
 				msg := models.Message{
 					From: server.ID,
 					Msg:  "PING",
@@ -91,16 +118,14 @@ func main() {
 
 				resp, err := http.Post(peer.URL+"/ping", "application/json", strings.NewReader(string(data)))
 				if err != nil {
-					log.Printf("[%d] Erro ao pingar %s: %v", server.ID, peer.URL, err)
+					log.Printf("[%d] - Erro ao pingar %s: %v", server.ID, peer.URL, err)
 					continue
 				}
 				resp.Body.Close()
 			}
-			time.Sleep(5 * time.Second)
 		}
 	}()
 
-	log.Printf("[%d] Servidor iniciado na porta %s", server.ID, server.Port)
+	log.Printf("[%d] - Servidor iniciado na porta %s", server.ID, server.Port)
 	log.Fatal(http.ListenAndServe(":"+server.Port, nil))
-
 }

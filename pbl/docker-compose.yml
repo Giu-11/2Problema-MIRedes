@@ -9,7 +9,7 @@ services:
     environment:
       - ID=1
       - PORT=8001
-      - PEERS=http://server2:8002,http://server3:8003
+      - PEERS=1=http://server2:8002,3=http://server3:8003
     networks:
       - pbl-network
 
@@ -23,7 +23,7 @@ services:
     environment:
       - ID=2
       - PORT=8002
-      - PEERS=http://server1:8001,http://server3:8003
+      - PEERS=2=http://server1:8001,3=http://server3:8003
     networks:
       - pbl-network
 
@@ -37,7 +37,7 @@ services:
     environment:
       - ID=3
       - PORT=8003
-      - PEERS=http://server1:8001,http://server2:8002
+      - PEERS=3=http://server1:8001,2=http://server2:8002
     networks:
       - pbl-network
 
