@@ -1,29 +1,46 @@
-version: "3.9"
-
 services:
   server1:
-    build: .
+    build:
+      context: .
+      dockerfile: Dockerfile
     container_name: server1
     ports:
       - "8001:8001"
     environment:
+      - ID=1
       - PORT=8001
       - PEERS=http://server2:8002,http://server3:8003
+    networks:
+      - pbl-network
 
   server2:
-    build: .
+    build:
+      context: .
+      dockerfile: Dockerfile
     container_name: server2
     ports:
       - "8002:8002"
     environment:
+      - ID=2
       - PORT=8002
       - PEERS=http://server1:8001,http://server3:8003
+    networks:
+      - pbl-network
 
   server3:
-    build: .
+    build:
+      context: .
+      dockerfile: Dockerfile
     container_name: server3
     ports:
       - "8003:8003"
     environment:
+      - ID=3
       - PORT=8003
       - PEERS=http://server1:8001,http://server2:8002
+    networks:
+      - pbl-network
+
+networks:
+  pbl-network:
+    driver: bridge

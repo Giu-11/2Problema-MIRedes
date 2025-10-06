@@ -1,22 +1,29 @@
-# Imagem base do Go
-FROM golang:1.25
+FROM golang:1.25 AS builder
 
-# Criar diretório de trabalho dentro do container
 WORKDIR /app
 
-# Copiar os arquivos do projeto
+COPY go.mod ./
+
 COPY . .
 
-# Baixar dependências e compilar
-RUN go mod tidy
-RUN go build -o server main.go
+RUN ls -la
+RUN ls -la server || echo "Pasta server não encontrada!"
 
-# Definir variáveis padrão (podem ser sobrescritas no docker-compose)
+RUN go mod download
+
+RUN CGO_ENABLED=0 GOOS=linux go build -a -installsuffix cgo -o server-bin ./server
+
+FROM alpine:3.19
+
+WORKDIR /app
+
+RUN apk --no-cache add ca-certificates
+
+COPY --from=builder /app/server-bin ./server
+
 ENV PORT=8001
 ENV PEERS=""
 
-# Expor a porta
 EXPOSE 8001
 
-# Rodar o servidor
 CMD ["./server"]
