@@ -1,4 +1,15 @@
+version: "3.9"
+
 services:
+  nats:
+    image: nats:latest
+    container_name: nats
+    ports:
+      - "4222:4222"      #porta padrão para clientes NATS
+      - "8222:8222"      #porta web do NATS para monitoramento
+    networks:
+      - pbl-network
+
   server1:
     build:
       context: .
@@ -9,9 +20,12 @@ services:
     environment:
       - ID=1
       - PORT=8001
-      - PEERS=1=http://server2:8002,3=http://server3:8003
+      - PEERS=2=http://server2:8002,3=http://server3:8003
+      - NATS_URL=nats://nats:4222
     networks:
       - pbl-network
+    depends_on:
+      - nats
 
   server2:
     build:
@@ -23,9 +37,12 @@ services:
     environment:
       - ID=2
       - PORT=8002
-      - PEERS=2=http://server1:8001,3=http://server3:8003
+      - PEERS=1=http://server1:8001,3=http://server3:8003
+      - NATS_URL=nats://nats:4222
     networks:
       - pbl-network
+    depends_on:
+      - nats
 
   server3:
     build:
@@ -37,9 +54,12 @@ services:
     environment:
       - ID=3
       - PORT=8003
-      - PEERS=3=http://server1:8001,2=http://server2:8002
+      - PEERS=1=http://server1:8001,2=http://server2:8002
+      - NATS_URL=nats://nats:4222
     networks:
       - pbl-network
+    depends_on:
+      - nats
 
 networks:
   pbl-network:

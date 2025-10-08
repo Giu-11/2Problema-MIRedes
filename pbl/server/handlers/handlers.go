@@ -160,3 +160,12 @@ func StartElection(s *models.Server){
     
     log.Printf("[%d] - ELEIÇÃO FINALIZADA", s.ID)
 }
+
+
+//CADASTRO
+func HandleRegister() {
+}
+
+func HandleLogin(){
+    //fazer ainda
+}
