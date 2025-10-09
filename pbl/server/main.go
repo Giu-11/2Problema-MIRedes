@@ -10,11 +10,11 @@ import (
 	"time"
 	"strconv"
 
-	"github.com/nats-io/nats.go"
-
 	"pbl/server/handlers"
 	"pbl/server/models"
 	"pbl/server/utils"
+	"pbl/server/pubSub"
+
 )
 
 func main() {
@@ -129,30 +129,13 @@ func main() {
 	}()
 
 	//Conexão com NATS
-		
-	//nc, err := nats.Connect("nats://localhost:4222") //pra localhost
+    nc, err := pubSub.StartNats(server)
+    if err != nil {
+        log.Fatalf("Erro ao iniciar NATS: %v", err)
+    }
+    defer nc.Close()
 
-	nc, err := nats.Connect("nats://nats:4222") //pra docker compose
-	if err != nil {
-		log.Fatalf("Erro ao conectar no NATS: %v", err)
-	}
-	defer nc.Close()
 
-	//servidor se inscreve no topico CADASTRO
-	_, err = nc.Subscribe("CADASTRO", func(msg *nats.Msg) {
-		var payload map[string]interface{}
-		if err := json.Unmarshal(msg.Data, &payload); err != nil {
-			log.Printf("[%d] Erro ao decodificar mensagem de cadastro: %v", server.ID, err)
-			return
-		}
-
-		log.Printf("[%d] - Recebi pedido de cadastro: %+v", server.ID, payload)
-
-	})
-	if err != nil {
-		log.Fatalf("Erro ao se inscrever no NATS: %v", err)
-	}
-	
 	go func() {
 		log.Printf("[%d] - Servidor HTTP iniciado na porta %s", server.ID, server.Port)
 		if err := http.ListenAndServe(":"+server.Port, nil); err != nil {

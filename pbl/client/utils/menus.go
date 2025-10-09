@@ -17,7 +17,7 @@ const (
 )
 
 
-func EscolherServidor(){
+func EscolherServidor() string{
 	fmt.Println("------------------------------")
 	fmt.Println("       Escolher servidor      ")
 	fmt.Println("------------------------------")
@@ -25,7 +25,8 @@ func EscolherServidor(){
 	fmt.Println("2 - Servidor 2") 
 	fmt.Println("3 - Servidor 2") 
 	fmt.Println("Insira o servidor que deseja: ")
-
+	input := ReadLineSafe()
+	return input
 }
 
 func MenuInicial(){

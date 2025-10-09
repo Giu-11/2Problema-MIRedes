@@ -7,7 +7,10 @@ import (
 	"net/http"
 	"pbl/server/models"
 	"pbl/server/utils"
+	"pbl/shared"
 	"time"
+
+	"github.com/nats-io/nats.go"
 )
 
 func PingHandler(serverID int) http.HandlerFunc {
@@ -161,9 +164,48 @@ func StartElection(s *models.Server){
     log.Printf("[%d] - ELEIÇÃO FINALIZADA", s.ID)
 }
 
+func HandleChooseServer(server *models.Server, request shared.Request, nc *nats.Conn, message *nats.Msg) {
+    // Pega o server_id do payload do cliente (mesmo que seja esse servidor)
+    var payloadData map[string]int
+    if err := json.Unmarshal(request.Payload, &payloadData); err != nil {
+        log.Printf("[%d] - Erro ao decodificar payload: %v", server.ID, err)
+        return
+    }
+
+    chosenServerID := payloadData["server_id"]
+    log.Printf("[%d] - Cliente %s escolheu este servidor (ID=%d)", server.ID, request.ClientID, chosenServerID)
+
+    // Resposta para o cliente confirmando que ele escolheu o servidor
+    response := shared.Response{
+        Status: "success",
+        Action: "choose_server",
+        Server: server.ID,
+    }
+    data, _ := json.Marshal(response)
+
+    if message.Reply != "" {
+        nc.Publish(message.Reply, data)
+    }
+}
+
 
 //CADASTRO
-func HandleRegister() {
+func HandleRegister(server *models.Server, request shared.Request, nc *nats.Conn, message *nats.Msg) {
+    var newUser shared.User
+    if err := json.Unmarshal(request.Payload, &newUser); err != nil {
+        log.Printf("[%d] Erro no payload de cadastro: %v", server.ID, err)
+        return
+    }
+
+    log.Printf("[%d] - Cadastro recebido: %+v", server.ID, request.Payload)
+
+    response := shared.Response{
+        Status: "success",
+        Action: "REGISTER",
+        Server: server.ID,
+    }
+    data, _ := json.Marshal(response)
+    nc.Publish(message.Reply, data)
 }
 
 func HandleLogin(){
