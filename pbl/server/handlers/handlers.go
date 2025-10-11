@@ -178,7 +178,7 @@ func HandleChooseServer(server *models.Server, request shared.Request, nc *nats.
     // Resposta para o cliente confirmando que ele escolheu o servidor
     response := shared.Response{
         Status: "success",
-        Action: "choose_server",
+        Action: "CHOOSE_SERVER",
         Server: server.ID,
     }
     data, _ := json.Marshal(response)
@@ -187,7 +187,6 @@ func HandleChooseServer(server *models.Server, request shared.Request, nc *nats.
         nc.Publish(message.Reply, data)
     }
 }
-
 
 //CADASTRO
 func HandleRegister(server *models.Server, request shared.Request, nc *nats.Conn, message *nats.Msg) {
@@ -208,6 +207,21 @@ func HandleRegister(server *models.Server, request shared.Request, nc *nats.Conn
     nc.Publish(message.Reply, data)
 }
 
-func HandleLogin(){
-    //fazer ainda
+func HandleLogin(server *models.Server, request shared.Request, nc *nats.Conn, message *nats.Msg){
+    var newUser shared.User
+    if err := json.Unmarshal(request.Payload, &newUser); err != nil {
+        log.Printf("[%d] Erro no payload de login: %v", server.ID, err)
+        return
+    }
+
+    log.Printf("[%d] - Login recebido: %+v", server.ID, request.Payload)
+
+    response := shared.Response{
+        Status: "success",
+        Action: "LOGIN",
+        Server: server.ID,
+    }
+
+    data, _ := json.Marshal(response)
+    nc.Publish(message.Reply, data)
 }

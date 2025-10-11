@@ -41,7 +41,7 @@ func MenuInicial() string {
 
 }
 
-func ShowMenuLogin() {
+func ShowMenuLogin() string {
 	for {
 		fmt.Println("\n----------------------------------")
 		fmt.Println("               Menu               ")
@@ -53,8 +53,7 @@ func ShowMenuLogin() {
 		fmt.Println("5 - Visualizar ping")
 		fmt.Println("6 - Deslogar")
 		fmt.Print("Insira a opção desejada: ")
-		//option := ReadLineSafe()
-		//return input
+		return ReadLineSafe()
 	}
 }
 

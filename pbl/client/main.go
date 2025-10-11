@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"log"
 	"strconv"
+	"time"
 
 	"pbl/client/utils"
 	"pbl/shared"
@@ -61,12 +62,12 @@ func main() {
 
 	//Publica no tópico do servidor escolhido
 	topic := fmt.Sprintf("server.%d.requests", chosenServer.ID)
-	err = nc.Publish(topic, dataReq)
+	msg, err := nc.Request(topic, dataReq, 3*time.Second)
 	if err != nil {
-		log.Printf("Erro ao publicar escolha do servidor: %v", err)
-	} else {
-		log.Printf("Escolha do servidor enviada com sucesso!")
+		log.Fatalf("Erro ao publicar escolha do servidor: %v", err)
 	}
+
+	log.Println("Resposta do servidor: ", string(msg.Data))
 
 	for {
 		option := utils.MenuInicial()
@@ -78,10 +79,10 @@ func main() {
 
 			log.Printf("data: %s", data)
 			log.Printf("\njson data: %s", jsonData)
-			
+
 			if err != nil {
-    			log.Printf("Erro ao converter para JSON: %v", err)
-    			return
+				log.Printf("Erro ao converter para JSON: %v", err)
+				return
 			}
 			req := shared.Request{
 				ClientID: "cliente1",
@@ -91,14 +92,56 @@ func main() {
 
 			reqData, _ := json.Marshal(req)
 
-			// Publica no tópico do servidor escolhido
 			topic := fmt.Sprintf("server.%d.requests", chosenServer.ID)
-			err = nc.Publish(topic, reqData)
+			msg, err := nc.Request(topic, reqData, 5*time.Second)
+			if err != nil {
+				if err == nats.ErrTimeout {
+					log.Printf("Timeout ao aguardar resposta do servidor. Tentando novamente...")
+					// Opcional: adicionar retry
+					return
+				}
+				log.Printf("Erro ao publicar cadastro: %v", err)
+				return
+			}
+
+			// Verificar se a mensagem não é nil antes de usar
+			if msg == nil {
+				log.Printf("Resposta vazia do servidor")
+				return
+			}
+
+			// Agora é seguro usar msg.Data
+			var response shared.Response
+			if err := json.Unmarshal(msg.Data, &response); err != nil {
+				log.Printf("Erro ao decodificar resposta: %v", err)
+				return
+			}
+
+			log.Println("Resposta do servidor:", string(msg.Data))
+
+		case "2": //Login
+			data := utils.Login()
+			jsonData, err := json.Marshal(data)
+			if err != nil {
+				log.Printf("Erro ao converter para JSON: %v", err)
+				return
+			}
+			req := shared.Request{
+				ClientID: "cliente1",
+				Action:   "LOGIN",
+				Payload:  json.RawMessage(jsonData),
+			}
+
+			reqData, _ := json.Marshal(req)
+
+			topic := fmt.Sprintf("server.%d.requests", chosenServer.ID)
+			msg, err := nc.Request(topic, reqData, 5*time.Second)
 			if err != nil {
 				log.Printf("Erro ao publicar cadastro: %v", err)
 			} else {
-				log.Printf("Cadastro enviado com sucesso!")
+				utils.ShowMenuLogin()
 			}
+			log.Println("Resposta do servidor:", string(msg.Data))
 
 		case "3": // Sair
 			return
