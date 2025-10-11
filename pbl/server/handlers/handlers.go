@@ -88,10 +88,10 @@ func ElectionHandler(s *models.Server) http.HandlerFunc{
     }
 }
 
-func StartElection(s *models.Server){
+
+func StartElection(s *models.Server) {
     s.Mu.Lock()
-    if s.ElectionInProgress{
-        //log.Printf("[%d]Eleição já em andamento, ignorando", s.ID)
+    if s.ElectionInProgress {
         s.Mu.Unlock()
         return
     }
@@ -100,67 +100,60 @@ func StartElection(s *models.Server){
     s.Mu.Unlock()
 
     log.Printf("[%d] - INICIANDO ELEIÇÃO", s.ID)
-    //log.Printf("[%d] - Meus peers: %+v", s.ID, s.Peers)
-    
-    higherExist := false
 
-    for _, peer := range s.Peers{
-        //log.Printf("[%d] - Verificando peer ID=%d, URL=%s", s.ID, peer.ID, peer.URL)
-        
-        if peer.ID > s.ID{
-            //log.Printf("[%d]Peer %d é maior que eu, enviando ELECTION", s.ID, peer.ID)
+    // Envia mensagem de eleição para todos os peers com ID maior
+    for _, peer := range s.Peers {
+        if peer.ID > s.ID {
+            log.Printf("[%d] - Peer %d é maior, enviando ELECTION", s.ID, peer.ID)
             message := models.ElectionMessage{
-                Type: "ELECTION",
-                FromID: s.ID,
+                Type:    "ELECTION",
+                FromID:  s.ID,
                 FromURL: s.SelfURL,
             }
-            err := utils.SendElectionMessage(peer.URL, message)
-            if err != nil {
-                log.Printf("[%d] - ERRO ao enviar ELECTION para %d (%s): %v", s.ID, peer.ID, peer.URL, err)
-            } else {
-                log.Printf("[%d] - ELECTION enviado para %d", s.ID, peer.ID)
-            }
-            higherExist = true
-        } else {
-            //log.Printf("[%d] - Peer %d é menor ou igual, ignorando", s.ID, peer.ID)
+            // Não se preocupe se der erro, significa que o peer está offline
+            go utils.SendElectionMessage(peer.URL, message)
         }
     }
-    time.Sleep(3*time.Second)
+
+    // Espera um tempo para receber respostas "OK"
+    time.Sleep(3 * time.Second)
 
     s.Mu.Lock()
     receivedOK := s.ReceivedOK
+    s.Mu.Unlock()
 
-    if !higherExist && !receivedOK {
+    // Se não recebemos um "OK", significa que ninguém maior está ativo. Nós somos o líder.
+    if !receivedOK {
+        s.Mu.Lock()
+        // Garante que não nos tornamos líder se outro processo já nos atualizou
+        if s.Leader == s.ID {
+             s.Mu.Unlock()
+             return
+        }
         s.IsLeader = true
         s.Leader = s.ID
         s.Mu.Unlock()
         
+        log.Printf("[%d] - >>> NINGUÉM MAIOR RESPONDEU. EU SOU O NOVO LÍDER! <<<", s.ID)
 
-        //Enviadno quem é líder para todos
-        for _, peer := range s.Peers{
-            message := models.ElectionMessage{
-                Type: "LEADER",
-                FromID: s.ID,
-                LeaderID: s.ID,
-                FromURL: s.SelfURL,
-            }
-            
-            err := utils.SendElectionMessage(peer.URL, message)
-            if err != nil {
-                log.Printf("[%d] - ERRO ao enviar LEADER para %d (%s): %v", s.ID, peer.ID, peer.URL, err)
-            } else {
-                //log.Printf("[%d] - LEADER enviado com sucesso para %d", s.ID, peer.ID)
-            }
+        // Anuncia para TODOS os peers (maiores e menores) que é o novo líder
+        announceMessage := models.ElectionMessage{
+            Type:     "LEADER",
+            FromID:   s.ID,
+            LeaderID: s.ID,
+            FromURL:  s.SelfURL,
         }
-        
+        for _, peer := range s.Peers {
+            go utils.SendElectionMessage(peer.URL, announceMessage)
+        }
     } else {
-        s.Mu.Unlock()
+         log.Printf("[%d] - Recebi um OK. Não sou o líder.", s.ID)
     }
-    
+
     s.Mu.Lock()
     s.ElectionInProgress = false
     s.Mu.Unlock()
-    
+
     log.Printf("[%d] - ELEIÇÃO FINALIZADA", s.ID)
 }
 

@@ -96,25 +96,55 @@ func parsePeers(peersEnv string) []models.PeerInfo {
 // Rotina de heartbeat (ping nos peers)
 func startHeartbeat(server *models.Server) {
 	for {
-		time.Sleep(5 * time.Second)
+		// Intervalo um pouco maior para dar tempo de resposta
+		time.Sleep(7 * time.Second) 
+
+		// Bloqueia o Mutex no início para ler e usar os dados do servidor de forma segura
 		server.Mu.Lock()
-		leader := server.Leader
-		server.Mu.Unlock()
+		currentLeaderID := server.Leader
+		electionInProgress := server.ElectionInProgress
+		peers := server.Peers
+		server.Mu.Unlock() // Desbloqueia logo após a leitura
 
-		log.Printf("\n[%d] - Líder atual: %d", server.ID, leader)
+		// Se este servidor for o líder, ele não precisa pingar ninguém para detectar falha do líder
+		// ou se uma eleição já estiver em andamento, espera a próxima rodada.
+		if server.IsLeader || electionInProgress {
+			continue
+		}
 
-		for _, peer := range server.Peers {
-			msg := models.Message{
-				From: server.ID,
-				Msg:  "PING",
+		// fica com o heartbeat so para o lider
+		log.Printf("\n[%d] - Verificando líder. Líder atual: %d", server.ID, currentLeaderID)
+
+		// Encontra as informações do peer que é o líder atual
+		var leaderPeer models.PeerInfo
+		foundLeader := false
+		for _, p := range peers {
+			if p.ID == currentLeaderID {
+				leaderPeer = p
+				foundLeader = true
+				break
 			}
-			data, _ := json.Marshal(msg)
-			resp, err := http.Post(peer.URL+"/ping", "application/json", strings.NewReader(string(data)))
-			if err != nil {
-				//log.Printf("[%d] - Erro ao pingar %s: %v", server.ID, peer.URL, err)
-				continue
-			}
-			resp.Body.Close()
+		}
+
+		// Se o líder não for encontrado na lista de peers ou for ele mesmo, não faz nada.
+		if !foundLeader || currentLeaderID == server.ID {
+			continue
+		}
+
+		// Tenta pingar o líder
+		msg := models.Message{
+			From: server.ID,
+			Msg:  "PING",
+		}
+		data, _ := json.Marshal(msg)
+		_, err := http.Post(leaderPeer.URL+"/ping", "application/json", strings.NewReader(string(data)))
+
+		// Se der erro ao pingar o líder...
+		if err != nil {
+			log.Printf("[%d] - ERRO ao pingar o líder %d (%s): %v. INICIANDO NOVA ELEIÇÃO!", server.ID, leaderPeer.ID, leaderPeer.URL, err)
+			
+			// Inicia uma nova eleição em uma goroutine para não bloquear o heartbeat
+			go handlers.StartElection(server) 
 		}
 	}
 }
