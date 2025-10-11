@@ -23,7 +23,7 @@ func PingHandler(serverID int) http.HandlerFunc {
 			json.Unmarshal(body, &msg)
 		}
 
-		log.Printf("[%s] Recebi PING de %s", serverID, msg.From)
+		//log.Printf("[%s] Recebi PING de %s", serverID, msg.From)
 
 		resp := models.Message{
 			From: serverID,
@@ -46,7 +46,7 @@ func ElectionHandler(s *models.Server) http.HandlerFunc{
         switch message.Type{
         case "ELECTION":
             if message.FromID < s.ID{
-                log.Printf("[%d] - Eleição de %d. Eu (%d) sou maior, enviando OK", s.ID, message.FromID, s.ID)
+                //log.Printf("[%d] - Eleição de %d. Eu (%d) sou maior, enviando OK", s.ID, message.FromID, s.ID)
                 response := models.ElectionMessage{
                     Type: "OK",
                     FromID: s.ID,
@@ -57,11 +57,11 @@ func ElectionHandler(s *models.Server) http.HandlerFunc{
                 s.Mu.Lock()
                 if !s.ElectionInProgress {
                     s.Mu.Unlock()
-                    log.Printf("[%d] - Iniciando minha própria eleição", s.ID)
+                    //log.Printf("[%d] - Iniciando minha própria eleição", s.ID)
                     go StartElection(s)
                 } else {
                     s.Mu.Unlock()
-                    log.Printf("[%d] - Eleição já em andamento, não inicio nova", s.ID)
+                    //log.Printf("[%d] - Eleição já em andamento, não inicio nova", s.ID)
                 }
             }
 
@@ -100,12 +100,12 @@ func StartElection(s *models.Server){
     s.Mu.Unlock()
 
     log.Printf("[%d] - INICIANDO ELEIÇÃO", s.ID)
-    log.Printf("[%d] - Meus peers: %+v", s.ID, s.Peers)
+    //log.Printf("[%d] - Meus peers: %+v", s.ID, s.Peers)
     
     higherExist := false
 
     for _, peer := range s.Peers{
-        log.Printf("[%d] - Verificando peer ID=%d, URL=%s", s.ID, peer.ID, peer.URL)
+        //log.Printf("[%d] - Verificando peer ID=%d, URL=%s", s.ID, peer.ID, peer.URL)
         
         if peer.ID > s.ID{
             //log.Printf("[%d]Peer %d é maior que eu, enviando ELECTION", s.ID, peer.ID)
@@ -122,7 +122,7 @@ func StartElection(s *models.Server){
             }
             higherExist = true
         } else {
-            log.Printf("[%d] - Peer %d é menor ou igual, ignorando", s.ID, peer.ID)
+            //log.Printf("[%d] - Peer %d é menor ou igual, ignorando", s.ID, peer.ID)
         }
     }
     time.Sleep(3*time.Second)
@@ -149,7 +149,7 @@ func StartElection(s *models.Server){
             if err != nil {
                 log.Printf("[%d] - ERRO ao enviar LEADER para %d (%s): %v", s.ID, peer.ID, peer.URL, err)
             } else {
-                log.Printf("[%d] - LEADER enviado com sucesso para %d", s.ID, peer.ID)
+                //log.Printf("[%d] - LEADER enviado com sucesso para %d", s.ID, peer.ID)
             }
         }
         

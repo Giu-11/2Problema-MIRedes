@@ -1,13 +1,47 @@
 services:
-  nats:
+  #NATS 1
+  nats1:
     image: nats:latest
-    container_name: nats
+    container_name: nats1
     ports:
-      - "4222:4222"      #porta padrão para clientes NATS
-      - "8222:8222"      #porta web do NATS para monitoramento
+      - "4223:4222"  # porta NATS
+      - "8223:8222"  # porta web
+    command: >
+      --cluster_name pbl-cluster
+      --cluster nats://0.0.0.0:6222
+      --routes nats://nats2:6222,nats://nats3:6222
     networks:
       - pbl-network
 
+  #NATS 2
+  nats2:
+    image: nats:latest
+    container_name: nats2
+    ports:
+      - "4224:4222"
+      - "8224:8222"
+    command: >
+      --cluster_name pbl-cluster
+      --cluster nats://0.0.0.0:6222
+      --routes nats://nats1:6222,nats://nats3:6222
+    networks:
+      - pbl-network
+
+  #NATS 3
+  nats3:
+    image: nats:latest
+    container_name: nats3
+    ports:
+      - "4225:4222"
+      - "8225:8222"
+    command: >
+      --cluster_name pbl-cluster
+      --cluster nats://0.0.0.0:6222
+      --routes nats://nats1:6222,nats://nats2:6222
+    networks:
+      - pbl-network
+
+  #Servidor 1
   server1:
     build:
       context: .
@@ -19,12 +53,13 @@ services:
       - ID=1
       - PORT=8001
       - PEERS=2=http://server2:8002,3=http://server3:8003
-      - NATS_URL=nats://nats:4222
+      - NATS_URL=nats://nats1:4222
     networks:
       - pbl-network
     depends_on:
-      - nats
+      - nats1
 
+  #Servidor 2
   server2:
     build:
       context: .
@@ -36,12 +71,13 @@ services:
       - ID=2
       - PORT=8002
       - PEERS=1=http://server1:8001,3=http://server3:8003
-      - NATS_URL=nats://nats:4222
+      - NATS_URL=nats://nats2:4222
     networks:
       - pbl-network
     depends_on:
-      - nats
+      - nats2
 
+  #Servidor 3
   server3:
     build:
       context: .
@@ -53,23 +89,11 @@ services:
       - ID=3
       - PORT=8003
       - PEERS=1=http://server1:8001,2=http://server2:8002
-      - NATS_URL=nats://nats:4222
+      - NATS_URL=nats://nats3:4222
     networks:
       - pbl-network
     depends_on:
-      - nats
-
-  # client:
-  #   build:
-  #   context: ./client
-  #   dockerfile: ../Dockerfile.client
-  #  container_name: client
-  #  environment:
-  #    - NATS_URL=nats://nats:4222
-  #  networks:
-  #    - pbl-network
-  #  depends_on:
-  #    - nats
+      - nats3
 
 networks:
   pbl-network:

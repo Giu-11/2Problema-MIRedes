@@ -1,11 +1,12 @@
 package utils
 
-import(
+import (
 	"fmt"
 )
+
 //MENUS PARA BASE - sujeito a mudanças
 
-//Pra poder usar cores no terminal
+// Pra poder usar cores no terminal
 const (
 	Reset  = "\033[0m"
 	Red    = "\033[31m"
@@ -16,20 +17,19 @@ const (
 	Cyan   = "\033[36m"
 )
 
-
-func EscolherServidor() string{
+func EscolherServidor() string {
 	fmt.Println("------------------------------")
 	fmt.Println("       Escolher servidor      ")
 	fmt.Println("------------------------------")
 	fmt.Println("1 - Servidor 1") //seria legal nomear os servidores
-	fmt.Println("2 - Servidor 2") 
-	fmt.Println("3 - Servidor 2") 
+	fmt.Println("2 - Servidor 2")
+	fmt.Println("3 - Servidor 2")
 	fmt.Println("Insira o servidor que deseja: ")
 	input := ReadLineSafe()
 	return input
 }
 
-func MenuInicial(){
+func MenuInicial() string {
 	fmt.Println("\n----------------------------------")
 	fmt.Println("           MENU INICIAL           ")
 	fmt.Println("----------------------------------")
@@ -37,11 +37,11 @@ func MenuInicial(){
 	fmt.Println("2 - Login")
 	fmt.Println("3 - Sair")
 	fmt.Print("Insira a opção desejada: ")
-	//option := ReadLineSafe()
+	return ReadLineSafe()
 
 }
 
-func ShowMenuLogin(){
+func ShowMenuLogin() {
 	for {
 		fmt.Println("\n----------------------------------")
 		fmt.Println("               Menu               ")

@@ -4,6 +4,8 @@ import (
 	"encoding/json"
 	"fmt"
 	"log"
+	"os"
+	"time"
 
 	"pbl/server/handlers"
 	"pbl/server/models"
@@ -11,35 +13,42 @@ import (
 
 	"github.com/nats-io/nats.go"
 )
+
 func StartNats(server *models.Server) (*nats.Conn, error) {
-    nc, err := nats.Connect("nats://nats:4222")
-    if err != nil {
-        return nil, fmt.Errorf("erro ao conectar no NATS: %w", err)
-    }
+	opts := []nats.Option{
+		nats.RetryOnFailedConnect(true),
+		nats.MaxReconnects(5),
+		nats.ReconnectWait(2 * time.Second),
+	}
 
-    // Subscribe no tópico de requests do servidor
-    topic := fmt.Sprintf("server.%d.requests", server.ID)
-    _, err = nc.Subscribe(topic, func(msg *nats.Msg) {
-        var req shared.Request
-        if err := json.Unmarshal(msg.Data, &req); err != nil {
-            log.Printf("[%d] Erro ao decodificar request: %v", server.ID, err)
-            return
-        }
+	nc, err := nats.Connect(os.Getenv("NATS_URL"), opts...)
+	if err != nil {
+		return nil, fmt.Errorf("erro ao conectar no NATS: %w", err)
+	}
 
-        // Chama o handler correto
-        switch req.Action {
-        case "REGISTER":
-            handlers.HandleRegister(server, req, nc, msg)
-        case "LOGIN":
-            //handlers.HandleLogin(server, req, nc, msg)
-        case "CHOOSE_SERVER":
-            handlers.HandleChooseServer(server, req, nc, msg)
-        }
-    })
-    if err != nil {
-        return nil, fmt.Errorf("erro ao se inscrever no tópico: %w", err)
-    }
+	// Subscribe no tópico de requests do servidor
+	topic := fmt.Sprintf("server.%d.requests", server.ID)
+	_, err = nc.Subscribe(topic, func(msg *nats.Msg) {
+		var req shared.Request
+		if err := json.Unmarshal(msg.Data, &req); err != nil {
+			log.Printf("[%d] Erro ao decodificar request: %v", server.ID, err)
+			return
+		}
 
-    log.Printf("[%d] - Inscrito em %s", server.ID, topic)
-    return nc, nil
+		// Chama o handler correto
+		switch req.Action {
+		case "REGISTER":
+			handlers.HandleRegister(server, req, nc, msg)
+		case "LOGIN":
+			//handlers.HandleLogin(server, req, nc, msg)
+		case "CHOOSE_SERVER":
+			handlers.HandleChooseServer(server, req, nc, msg)
+		}
+	})
+	if err != nil {
+		return nil, fmt.Errorf("erro ao se inscrever no tópico: %w", err)
+	}
+
+	log.Printf("[%d] - Inscrito em %s", server.ID, topic)
+	return nc, nil
 }
