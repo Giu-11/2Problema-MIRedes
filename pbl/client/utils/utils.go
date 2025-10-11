@@ -7,6 +7,9 @@ import(
     "strings"
 	"os/exec"
 	"runtime"
+	"math"
+	"crypto/rand"
+	"encoding/binary"
 )
 
 func ReadLineSafe() string {
@@ -33,4 +36,15 @@ func Clear() {
 	cmd.Stdout = os.Stdout
 	cmd.Stderr = os.Stderr
 	cmd.Run()
+}
+
+func GerarIdAleatorio() int {
+	var b [4]byte
+	_, err := rand.Read(b[:])
+	if err != nil {
+		panic(err)
+	}
+	id := int(binary.LittleEndian.Uint32(b[:]))
+	fmt.Println("ID:", id)
+	return int(math.Abs(float64(id)))
 }

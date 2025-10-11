@@ -51,9 +51,11 @@ func main() {
 
 	payloadJSON, _ := json.Marshal(payload)
 
+	cliente := fmt.Sprintf("cliente%d", utils.GerarIdAleatorio())
+
 	//Cria Request
 	req := shared.Request{
-		ClientID: "cliente1",
+		ClientID: cliente,
 		Action:   "CHOOSE_SERVER",
 		Payload:  json.RawMessage(payloadJSON),
 	}
@@ -84,8 +86,9 @@ func main() {
 				log.Printf("Erro ao converter para JSON: %v", err)
 				return
 			}
+			
 			req := shared.Request{
-				ClientID: "cliente1",
+				ClientID: cliente,
 				Action:   "REGISTER",
 				Payload:  json.RawMessage(jsonData),
 			}
@@ -127,7 +130,7 @@ func main() {
 				return
 			}
 			req := shared.Request{
-				ClientID: "cliente1",
+				ClientID: cliente,
 				Action:   "LOGIN",
 				Payload:  json.RawMessage(jsonData),
 			}

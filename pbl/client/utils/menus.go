@@ -23,7 +23,7 @@ func EscolherServidor() string {
 	fmt.Println("------------------------------")
 	fmt.Println("1 - Servidor 1") //seria legal nomear os servidores
 	fmt.Println("2 - Servidor 2")
-	fmt.Println("3 - Servidor 2")
+	fmt.Println("3 - Servidor 3")
 	fmt.Println("Insira o servidor que deseja: ")
 	input := ReadLineSafe()
 	return input

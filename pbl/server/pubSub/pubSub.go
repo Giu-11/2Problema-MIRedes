@@ -35,7 +35,7 @@ func StartNats(server *models.Server) (*nats.Conn, error) {
 			return
 		}
 
-		// Chama o handler correto
+		//Chama o handler correto
 		switch req.Action {
 		case "REGISTER":
 			handlers.HandleRegister(server, req, nc, msg)

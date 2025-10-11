@@ -1,29 +1,14 @@
 package utils
 
 import (
-	"crypto/rand"
-	"encoding/binary"
 	"fmt"
 	"net"
-	"math"
 	"bytes"
 	"time"
     "encoding/json"
     "net/http"
 	"pbl/server/models"
 )
-
-//Gerar um ID aleatório 
-func GerarIdAleatorio() int {
-	var b [4]byte
-	_, err := rand.Read(b[:])
-	if err != nil {
-		panic(err)
-	}
-	id := int(binary.LittleEndian.Uint32(b[:]))
-	fmt.Println("ID:", id)
-	return int(math.Abs(float64(id)))
-}
 
 //Descobrir o IP do pc que tá rodando o servidor
 func LocalIP() (string, error) {
