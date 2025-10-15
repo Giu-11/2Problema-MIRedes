@@ -1,24 +1,24 @@
 package models
 
 import (
-    "sync"
+	"sync"
+
+	"github.com/hashicorp/raft"
 )
+
 type Server struct {
-    ID                int
-    Port              string
-    SelfURL           string
-    Peers             []PeerInfo
-    IsLeader          bool
-    Leader            int
-    Mu                sync.Mutex
-    ElectionInProgress bool
-    ReceivedOK bool
+	ID      int
+	Port    string
+	SelfURL string
+	Peers   []PeerInfo
+	Raft    *raft.Raft
+	Mu      sync.Mutex
 }
 
 type Message struct {
-    From int `json:"from"`
-    MsgType string `json:"msg_type"`
-    Msg     string `json:"msg"`
+	From    int    `json:"from"`
+	MsgType string `json:"msg_type"`
+	Msg     string `json:"msg"`
 }
 
 type PeerInfo struct {
@@ -26,9 +26,9 @@ type PeerInfo struct {
 	URL string
 }
 
-type ElectionMessage struct{
-	Type string `json:"type"`
-	FromID int `json:"from_id"`     
-	FromURL string `json:"leader_url,omitempty"`
+type ElectionMessage struct {
+	Type     string `json:"type"`
+	FromID   int    `json:"from_id"`
+	FromURL  string `json:"leader_url,omitempty"`
 	LeaderID int    `json:"leader_id"`
 }

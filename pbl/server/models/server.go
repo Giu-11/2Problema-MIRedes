@@ -1,7 +1,7 @@
 package models
 
 import (
-    "fmt"
+	"fmt"
 )
 
 func NewServer(id int, port string, peers []PeerInfo, ip string) *Server {
@@ -10,9 +10,5 @@ func NewServer(id int, port string, peers []PeerInfo, ip string) *Server {
         Port:               port,
         Peers:              peers,
         SelfURL:            fmt.Sprintf("http://%s:%s", ip, port),
-        ElectionInProgress: false,
-        ReceivedOK:         false,
-        Leader:             0,
-        IsLeader:           false,
     }
 }
