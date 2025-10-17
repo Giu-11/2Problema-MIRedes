@@ -9,6 +9,7 @@ import (
 	"strings"
 
 	"pbl/server/models"
+	"pbl/server/handlers"
 	"pbl/server/pubSub"
 
 	"github.com/hashicorp/raft"
@@ -76,10 +77,12 @@ func StartServer(idString, port, peersEnv, natsURL string) error {
 	}
 	ra.BootstrapCluster(configuration)
 
-	_, err = pubSub.StartNats(server)
+	nc, err := pubSub.StartNats(server)
 	if err != nil {
 		log.Fatalf("Erro NATS: %v", err)
 	}
+
+	handlers.StartHeartbeatMonitor(server, nc)
 
 	http.HandleFunc("/raft", transport.HandleRaftRequest)
 

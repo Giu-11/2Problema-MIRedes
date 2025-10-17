@@ -4,7 +4,10 @@ import (
 	"encoding/json"
 	"fmt"
 	"log"
+	"os"
+	"os/signal"
 	"strconv"
+	"syscall"
 	"time"
 
 	"pbl/client/utils"
@@ -46,8 +49,22 @@ func main() {
 	clienteID := fmt.Sprintf("cliente%d", utils.GerarIdAleatorio())
 	log.Printf("Seu ID de cliente para esta sessão é: %s\n", clienteID)
 
-	// Lógica principal do menu
+	//Configura captura de Ctrl+C para logout
+	sigs := make(chan os.Signal, 1)
+	signal.Notify(sigs, syscall.SIGINT, syscall.SIGTERM)
+	go func() {
+		<-sigs
+		logout(nc, chosenServer, clienteID)
+		os.Exit(0)
+	}()
+
+	//Inicia heartbeat
+	serverTopic := fmt.Sprintf("server.%d.requests", chosenServer.ID)
+	StartHeartbeat(nc, clienteID, serverTopic)
+
+	//Loop do menu principal
 	handleMainMenu(nc, chosenServer, clienteID)
+	
 }
 
 // handleMainMenu gerencia o loop do menu inicial (antes do login)
@@ -57,7 +74,7 @@ func handleMainMenu(nc *nats.Conn, server ServerInfo, clientID string) {
 		switch option {
 		case "1": // Login
 			// A função de login agora retorna 'true' se o login for bem-sucedido
-			success := handleLogin(nc, server, clientID)
+			success := sendLoginRequest(nc, server, clientID)
 			if success {
 				// Se o login funcionou, entramos no menu do jogo
 				handleGameMenu(nc, server, clientID)
@@ -71,8 +88,8 @@ func handleMainMenu(nc *nats.Conn, server ServerInfo, clientID string) {
 	}
 }
 
-// handleLogin cuida do processo de login e trata a resposta
-func handleLogin(nc *nats.Conn, server ServerInfo, clientID string) bool {
+//login cuida do processo de login e trata a resposta
+func sendLoginRequest(nc *nats.Conn, server ServerInfo, clientID string) bool {
 	credentials := utils.Login()
 	jsonData, err := json.Marshal(credentials)
 	if err != nil {
@@ -107,11 +124,63 @@ func handleLogin(nc *nats.Conn, server ServerInfo, clientID string) bool {
 	if response.Status == "success" {
 		fmt.Println("\nLogin realizado com sucesso!")
 		return true
+
 	} else {
 		fmt.Println("\nFalha no login:", response.Error)
 		return false
 	}
 }
+
+func logout(nc *nats.Conn, server ServerInfo, clientID string) {
+	req := shared.Request{
+		ClientID: clientID,
+		Action:   "LOGOUT",
+	}
+	reqData, _ := json.Marshal(req)
+
+	topic := fmt.Sprintf("server.%d.requests", server.ID)
+	msg, err := nc.Request(topic, reqData, 5*time.Second)
+	if err != nil {
+		if err == nats.ErrTimeout {
+			log.Println("Erro: o servidor não respondeu ao logout a tempo.")
+		} else {
+			log.Printf("Erro ao enviar requisição de logout: %v", err)
+		}
+		return
+	}
+
+	var response shared.Response
+	if err := json.Unmarshal(msg.Data, &response); err != nil {
+		log.Printf("Erro ao decodificar resposta de logout: %v", err)
+		return
+	}
+	/*
+	if response.Status == "success" {
+		log.Printf("Logout realizado com sucesso no servidor %d.", response.Server)
+	} else {
+		log.Printf("Falha no logout: %s", response.Error)
+	}*/
+}
+
+//Para verificar se o cliente tá vivo 
+func StartHeartbeat(nc *nats.Conn, clientID string, serverTopic string) {
+	go func() {
+		for {
+			req := shared.Request{
+				Action:   "HEARTBEAT",
+				ClientID: clientID,
+				Payload:  nil,
+			}
+
+			data, _ := json.Marshal(req)
+			nc.Publish(serverTopic, data)
+
+			//log.Printf("[CLIENTE %s] - Enviou heartbeat para %s", clientID, serverTopic)
+			time.Sleep(5 * time.Second)
+		}
+	}()
+}
+
 
 // handleGameMenu gerencia o loop do menu do jogo (após o login)
 func handleGameMenu(nc *nats.Conn, server ServerInfo, clientID string) {
@@ -122,19 +191,27 @@ func handleGameMenu(nc *nats.Conn, server ServerInfo, clientID string) {
 		case "1": //entrar na fila
 			fmt.Println("Entrando na fila para uma nova partida...")
 			// Aqui viria a lógica para enviar a requisição de matchmaking
+
 		case "2": //ver e organizar deck
 			fmt.Println("ver deck não implementado..")
+
 		case "3": //abrir pacote
 			fmt.Println("abrir pacote não implementado")
+
 		case "4": // troca de cartas
 			fmt.Println("troca de cartas não implentada")
+
 		case "5": //ver regras
 			utils.ShowRules()
+
 		case "6": // ping
 			fmt.Println("ping não implemntado")
+
 		case "7": //sair
 			fmt.Println("Deslogando...")
-			return // Retorna para o menu principal
+			logout(nc, server, clientID)
+			return //Retorna para o menu principal
+
 		default:
 			fmt.Println("Opção ainda não implementada.")
 		}
