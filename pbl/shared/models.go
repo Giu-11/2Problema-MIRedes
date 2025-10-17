@@ -1,6 +1,9 @@
 package shared
 
-import "encoding/json"
+import (
+	"encoding/json"
+	"time"
+)
 
 type Event struct {
 	Type string          `json:"type"`
@@ -10,9 +13,10 @@ type Event struct {
 
 type User struct {
 	UserName string   `json:"username"`
+	UserId string     `json:"user_id"`
 	Password string   `json:"password"`
-	Cards    []string `json:"cards"`
-	Deck     []string `json:"deck"`
+	Cards    []Card `json:"cards"`
+	Deck     []Card `json:"deck"`
 }
 
 type Card struct {
@@ -33,4 +37,10 @@ type Response struct {
 	Data   json.RawMessage `json:"data,omitempty"`
 	Error  string          `json:"error,omitempty"`
 	Server int             `json:"server"`
+}
+type QueueEntry struct {
+	Player User    `json:"user"`
+	ServerID string    `json:"server_id"`
+	Topic    string    `json:"topic"`
+	JoinTime time.Time `json:"join_time"`
 }

@@ -45,6 +45,8 @@ func StartNats(server *models.Server) (*nats.Conn, error) {
 			handlers.HandleHeartbeat(server.ID, req, nc, msg)
 		case "LOGOUT": 
     		handlers.HandleLogout(server, req, nc, msg)
+		case "JOIN_QUEUE":
+			handlers.HandleJoinQueue(server, req, nc, msg)
 		}
 
 	})

@@ -10,35 +10,33 @@ import (
 	"syscall"
 	"time"
 
+	"pbl/client/game"
+	"pbl/client/models"
 	"pbl/client/utils"
 	"pbl/shared"
 
 	"github.com/nats-io/nats.go"
 )
 
-type ServerInfo struct {
-	ID   int
-	Name string
-	NATS string
-}
-
 func main() {
-	servers := []ServerInfo{
+	// Lista de servidores disponíveis
+	servers := []models.ServerInfo{
 		{ID: 1, Name: "Servidor 1", NATS: "nats://localhost:4223"},
 		{ID: 2, Name: "Servidor 2", NATS: "nats://localhost:4224"},
 		{ID: 3, Name: "Servidor 3", NATS: "nats://localhost:4225"},
 	}
 
+	// Escolha do servidor
 	chooseString := utils.EscolherServidor()
 	chooseInt, err := strconv.Atoi(chooseString)
 	if err != nil || chooseInt < 1 || chooseInt > len(servers) {
 		fmt.Println("Escolha inválida.")
 		return
 	}
-
 	chosenServer := servers[chooseInt-1]
 	fmt.Printf("Você escolheu: %s (ID=%d)\n", chosenServer.Name, chosenServer.ID)
 
+	// Conexão NATS
 	nc, err := nats.Connect(chosenServer.NATS)
 	if err != nil {
 		log.Fatalf("Erro ao conectar no NATS do servidor escolhido: %v", err)
@@ -46,55 +44,52 @@ func main() {
 	defer nc.Close()
 	log.Println("Conectado ao NATS do servidor escolhido:", chosenServer.NATS)
 
-	clienteID := fmt.Sprintf("cliente%d", utils.GerarIdAleatorio())
-	log.Printf("Seu ID de cliente para esta sessão é: %s\n", clienteID)
+	// ID do cliente para NATS (sessão)
+	clientID := fmt.Sprintf("cliente%d", utils.GerarIdAleatorio())
+	log.Printf("Seu ID de cliente para esta sessão é: %s\n", clientID)
 
-	//Configura captura de Ctrl+C para logout
+	// Captura Ctrl+C para logout
 	sigs := make(chan os.Signal, 1)
 	signal.Notify(sigs, syscall.SIGINT, syscall.SIGTERM)
 	go func() {
 		<-sigs
-		logout(nc, chosenServer, clienteID)
+		logout(nc, chosenServer, clientID)
 		os.Exit(0)
 	}()
 
-	//Inicia heartbeat
-	serverTopic := fmt.Sprintf("server.%d.requests", chosenServer.ID)
-	StartHeartbeat(nc, clienteID, serverTopic)
-
-	//Loop do menu principal
-	handleMainMenu(nc, chosenServer, clienteID)
-	
+	// Inicia o menu inicial (login)
+	handleMainMenu(nc, chosenServer, clientID)
 }
 
-// handleMainMenu gerencia o loop do menu inicial (antes do login)
-func handleMainMenu(nc *nats.Conn, server ServerInfo, clientID string) {
+// handleMainMenu: menu inicial (antes do login)
+func handleMainMenu(nc *nats.Conn, server models.ServerInfo, clientID string) {
 	for {
 		option := utils.MenuInicial()
 		switch option {
 		case "1": // Login
-			// A função de login agora retorna 'true' se o login for bem-sucedido
-			success := sendLoginRequest(nc, server, clientID)
+			user, success := sendLoginRequest(nc, server, clientID)
 			if success {
-				// Se o login funcionou, entramos no menu do jogo
-				handleGameMenu(nc, server, clientID)
+				// Se login bem-sucedido, entra no menu do jogo
+				startGameLoop(nc, server, clientID, user)
 			}
+
 		case "2": // Sair
 			fmt.Println("Até mais!")
 			return
+
 		default:
 			fmt.Println("Opção inválida, tente novamente.")
 		}
 	}
 }
 
-//login cuida do processo de login e trata a resposta
-func sendLoginRequest(nc *nats.Conn, server ServerInfo, clientID string) bool {
+// sendLoginRequest: envia credenciais e retorna User completo
+func sendLoginRequest(nc *nats.Conn, server models.ServerInfo, clientID string) (shared.User, bool) {
 	credentials := utils.Login()
 	jsonData, err := json.Marshal(credentials)
 	if err != nil {
 		log.Printf("Erro ao converter para JSON: %v", err)
-		return false
+		return shared.User{}, false
 	}
 
 	req := shared.Request{
@@ -112,26 +107,69 @@ func sendLoginRequest(nc *nats.Conn, server ServerInfo, clientID string) bool {
 		} else {
 			log.Printf("Erro ao enviar requisição de login: %v", err)
 		}
-		return false
+		return shared.User{}, false
 	}
 
 	var response shared.Response
 	if err := json.Unmarshal(msg.Data, &response); err != nil {
 		log.Printf("Erro ao decodificar resposta do servidor: %v", err)
-		return false
+		return shared.User{}, false
 	}
 
 	if response.Status == "success" {
+		var user shared.User
+		if err := json.Unmarshal(response.Data, &user); err != nil {
+			log.Printf("Erro ao decodificar dados do usuário: %v", err)
+			return shared.User{}, false
+		}
 		fmt.Println("\nLogin realizado com sucesso!")
-		return true
+		return user, true
+	}
 
-	} else {
-		fmt.Println("\nFalha no login:", response.Error)
-		return false
+	fmt.Println("\nFalha no login:", response.Error)
+	return shared.User{}, false
+}
+
+// startGameLoop: menu principal após login
+func startGameLoop(nc *nats.Conn, server models.ServerInfo, clientID string, user shared.User) {
+	// Inicia heartbeat para este cliente
+	serverTopic := fmt.Sprintf("server.%d.requests", server.ID)
+	startHeartbeat(nc, clientID, serverTopic)
+
+	for {
+		option := utils.ShowMenuPrincipal()
+		switch option {
+		case "1": // Entrar na fila
+			fmt.Println("Entrando na fila para uma nova partida...")
+			clientTopic := fmt.Sprintf("client.%s.inbox", clientID)
+			success := game.JoinQueue(nc, server, user, clientTopic)
+			if success {
+				fmt.Println("Aguardando match...")
+			}
+
+		case "2":
+			fmt.Println("Ver deck não implementado..")
+		case "3":
+			fmt.Println("Abrir pacote não implementado")
+		case "4":
+			fmt.Println("Troca de cartas não implementada")
+		case "5":
+			utils.ShowRules()
+		case "6":
+			fmt.Println("Ping não implementado")
+		case "7":
+			fmt.Println("Deslogando...")
+			logout(nc, server, clientID)
+			return
+
+		default:
+			fmt.Println("Opção ainda não implementada.")
+		}
 	}
 }
 
-func logout(nc *nats.Conn, server ServerInfo, clientID string) {
+// logout envia mensagem de LOGOUT
+func logout(nc *nats.Conn, server models.ServerInfo, clientID string) {
 	req := shared.Request{
 		ClientID: clientID,
 		Action:   "LOGOUT",
@@ -154,66 +192,26 @@ func logout(nc *nats.Conn, server ServerInfo, clientID string) {
 		log.Printf("Erro ao decodificar resposta de logout: %v", err)
 		return
 	}
-	/*
+
 	if response.Status == "success" {
 		log.Printf("Logout realizado com sucesso no servidor %d.", response.Server)
 	} else {
 		log.Printf("Falha no logout: %s", response.Error)
-	}*/
+	}
 }
 
-//Para verificar se o cliente tá vivo 
-func StartHeartbeat(nc *nats.Conn, clientID string, serverTopic string) {
+
+// startHeartbeat envia HEARTBEAT periódico
+func startHeartbeat(nc *nats.Conn, clientID, serverTopic string) {
 	go func() {
 		for {
 			req := shared.Request{
-				Action:   "HEARTBEAT",
-				ClientID: clientID,
-				Payload:  nil,
+				Action:  "HEARTBEAT",
+				Payload: nil,
 			}
-
 			data, _ := json.Marshal(req)
 			nc.Publish(serverTopic, data)
-
-			//log.Printf("[CLIENTE %s] - Enviou heartbeat para %s", clientID, serverTopic)
 			time.Sleep(5 * time.Second)
 		}
 	}()
-}
-
-
-// handleGameMenu gerencia o loop do menu do jogo (após o login)
-func handleGameMenu(nc *nats.Conn, server ServerInfo, clientID string) {
-	// argumento não usado(nc) sera usado no futuro
-	for {
-		option := utils.ShowMenuPrincipal()
-		switch option {
-		case "1": //entrar na fila
-			fmt.Println("Entrando na fila para uma nova partida...")
-			// Aqui viria a lógica para enviar a requisição de matchmaking
-
-		case "2": //ver e organizar deck
-			fmt.Println("ver deck não implementado..")
-
-		case "3": //abrir pacote
-			fmt.Println("abrir pacote não implementado")
-
-		case "4": // troca de cartas
-			fmt.Println("troca de cartas não implentada")
-
-		case "5": //ver regras
-			utils.ShowRules()
-
-		case "6": // ping
-			fmt.Println("ping não implemntado")
-
-		case "7": //sair
-			fmt.Println("Deslogando...")
-			logout(nc, server, clientID)
-			return //Retorna para o menu principal
-
-		default:
-			fmt.Println("Opção ainda não implementada.")
-		}
-	}
 }

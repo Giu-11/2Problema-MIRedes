@@ -4,11 +4,11 @@ import (
 	"encoding/json"
 	"io"
 	"log"
-	"time"
 	"net/http"
-	"sync"
-	"strconv"
 	"pbl/server/models"
+	"strconv"
+	"sync"
+	"time"
 
 	//sharedRaft "pbl/server/shared"
 	"pbl/shared"
@@ -24,7 +24,7 @@ type ClientInfo struct {
 
 var (
 	activeClients = make(map[string]*ClientInfo)
-	mu = sync.Mutex{}
+	mu            = sync.Mutex{}
 )
 
 func PingHandler(serverID int) http.HandlerFunc {
@@ -71,9 +71,9 @@ func HandleChooseServer(server *models.Server, request shared.Request, nc *nats.
 		nc.Publish(message.Reply, data)
 	}
 }
-
+/*
 func HandleLogin(server *models.Server, request shared.Request, nc *nats.Conn, message *nats.Msg) {
-    //TODO: lidar com clientes já logados(não logar quem já logou)
+	//TODO: lidar com clientes já logados(não logar quem já logou)
 	var userCredentials shared.User
 	if err := json.Unmarshal(request.Payload, &userCredentials); err != nil {
 		log.Printf("[%d] - Erro no payload de login: %v", server.ID, err)
@@ -120,71 +120,121 @@ func HandleLogin(server *models.Server, request shared.Request, nc *nats.Conn, m
 	data, _ := json.Marshal(response)
 	nc.Publish(message.Reply, data)
 }
+*/
 
-func HandleLogout(server *models.Server, request shared.Request, nc *nats.Conn, message *nats.Msg) {
-	DisconnectClient(server, request.ClientID)
+func HandleLogin(server *models.Server, request shared.Request, nc *nats.Conn, msg *nats.Msg) {
+    var user shared.User
+    if err := json.Unmarshal(request.Payload, &user); err != nil {
+        log.Printf("[%d] - Erro ao desserializar login: %v", server.ID, err)
+        resp := shared.Response{
+            Status: "error",
+            Action: "LOGIN_FAIL",
+            Error:  "payload inválido",
+            Server: server.ID,
+        }
+        data, _ := json.Marshal(resp)
+        nc.Publish(msg.Reply, data)
+        return
+    }
+
+    //Bloqueia o mapa de usuários para evitar condições de corrida
     server.Mu.Lock()
-    defer server.Mu.Unlock()
+    server.Users[request.ClientID] = user
+    server.Mu.Unlock()
 
-    delete(server.Users, request.ClientID)
-    
-    log.Printf("[%d] - Cliente '%s' desconectado.", server.ID, request.ClientID)
+    log.Printf("[%d] - Usuário '%s' conectado com ClientID '%s'", server.ID, user.UserName, request.ClientID)
 
-    response := shared.Response{
+    //Retorna os dados completos do usuário para o cliente
+    resp := shared.Response{
+        Status: "success",
+        Action: "LOGIN_SUCCESS",
+        Data:   mustMarshal(user), //converte struct User em JSON
+        Server: server.ID,
+    }
+    data, _ := json.Marshal(resp)
+    nc.Publish(msg.Reply, data)
+}
+
+//Helper para converter qualquer struct em json.RawMessage
+func mustMarshal(v interface{}) json.RawMessage {
+    b, _ := json.Marshal(v)
+    return json.RawMessage(b)
+}
+
+func HandleLogout(server *models.Server, request shared.Request, nc *nats.Conn, msg *nats.Msg) {
+    server.Mu.Lock()
+    user, exists := server.Users[request.ClientID]
+    if exists {
+        log.Printf("[%d] - Cliente '%s' desconectado (ClientID: %s)", server.ID, user.UserName, request.ClientID)
+        delete(server.Users, request.ClientID)
+    } else {
+        log.Printf("[%d] - Cliente com ClientID '%s' desconectado (usuário não encontrado)", server.ID, request.ClientID)
+    }
+    server.Mu.Unlock()
+
+    mu.Lock()
+    delete(activeClients, request.ClientID)
+    mu.Unlock()
+
+    DisconnectClient(server, request.ClientID)
+
+    // Resposta para o cliente
+    resp := shared.Response{
         Status: "success",
         Action: "LOGOUT_SUCCESS",
         Server: server.ID,
     }
-    data, _ := json.Marshal(response)
-    nc.Publish(message.Reply, data)
+    data, _ := json.Marshal(resp)
+    nc.Publish(msg.Reply, data)
 }
 
-//Heatbeat para o clinete
+
+// Heatbeat para o clinete
 func StartHeartbeatMonitor(server *models.Server, nc *nats.Conn) {
-    go func() {
-        for {
-            time.Sleep(5 * time.Second)
-            now := time.Now()
+	go func() {
+		for {
+			time.Sleep(5 * time.Second)
+			now := time.Now()
 
-            mu.Lock()
-            for id, c := range activeClients {
-                if now.Sub(c.LastSeen) > 15*time.Second {
-                    log.Printf("Cliente '%s' inativo. Removendo...", id)
-                    delete(activeClients, id)
+			mu.Lock()
+			for id, c := range activeClients {
+				if now.Sub(c.LastSeen) > 15*time.Second {
+					log.Printf("Cliente '%s' inativo. Removendo...", id)
+					delete(activeClients, id)
 
-                    //remove do mapa de usuários do servidor
-                    server.Mu.Lock()
-                    delete(server.Users, id)
-                    server.Mu.Unlock()
+					//remove do mapa de usuários do servidor
+					server.Mu.Lock()
+					delete(server.Users, id)
+					server.Mu.Unlock()
 
-                    response := shared.Response{
-                        Status: "success",
-                        Action: "LOGOUT_SUCCESS",
-                        Server: server.ID,
-                    }
-                    data, _ := json.Marshal(response)
+					response := shared.Response{
+						Status: "success",
+						Action: "LOGOUT_SUCCESS",
+						Server: server.ID,
+					}
+					data, _ := json.Marshal(response)
 					nc.Publish("server."+strconv.Itoa(server.ID)+".requests", data)
-                }
-            }
-            mu.Unlock()
-        }
-    }()
+				}
+			}
+			mu.Unlock()
+		}
+	}()
 }
 
 // Função que trata a desconexão de forma genérica
 func DisconnectClient(server *models.Server, clientID string) {
-    server.Mu.Lock()
-    delete(server.Users, clientID)
-    server.Mu.Unlock()
+	server.Mu.Lock()
+	delete(server.Users, clientID)
+	server.Mu.Unlock()
 
-    mu.Lock()
-    delete(activeClients, clientID)
-    mu.Unlock()
+	mu.Lock()
+	delete(activeClients, clientID)
+	mu.Unlock()
 
-    log.Printf("Cliente '%s' caiu ou ficou inativo. Removido do servidor.", clientID)
+	log.Printf("Cliente '%s' caiu ou ficou inativo. Removido do servidor.", clientID)
 }
 
-//Handler para processar os heartbeats recebidos via NATS
+// Handler para processar os heartbeats recebidos via NATS
 func HandleHeartbeat(serverID int, request shared.Request, nc *nats.Conn, msg *nats.Msg) {
 	clientID := request.ClientID
 	mu.Lock()
@@ -197,6 +247,47 @@ func HandleHeartbeat(serverID int, request shared.Request, nc *nats.Conn, msg *n
 	//log.Printf("[%d] - Heartbeat recebido de %s", serverID, clientID)
 
 }
+
+// Colocar cliente na fila --> tem dois tipos de fila, a do servidor que ele tá e a "global"
+func HandleJoinQueue(server *models.Server, request shared.Request, nc *nats.Conn, msg *nats.Msg) {
+	var entry shared.QueueEntry
+	if err := json.Unmarshal(request.Payload, &entry); err != nil {
+		log.Printf("Erro ao desserializar payload do JOIN_QUEUE: %v", err)
+		resp := shared.Response{
+			Status: "error",
+			Error:  "Payload inválido",
+		}
+		data, _ := json.Marshal(resp)
+		nc.Publish(msg.Reply, data)
+		return
+	}
+
+	// Adiciona na fila local
+	server.Matchmaking.Mutex.Lock()
+	server.Matchmaking.LocalQueue = append(server.Matchmaking.LocalQueue, entry)
+	server.Matchmaking.Mutex.Unlock()
+
+	log.Printf("Cliente %s entrou na fila local do servidor %d", entry.Player.UserName, server.ID)
+
+	//Se for líder, adiciona também na fila global
+	if server.Matchmaking.IsLeader {
+		server.Matchmaking.Mutex.Lock()
+		server.Matchmaking.GlobalQueue = append(server.Matchmaking.GlobalQueue, entry)
+		server.Matchmaking.Mutex.Unlock()
+		log.Printf("Cliente %s adicionado na fila global (servidor líder)", entry.Player.UserName)
+	}
+
+	//Responde para o cliente
+	msgData, _ := json.Marshal("Cliente adicionado à fila com sucesso")
+	resp := shared.Response{
+		Status: "success",
+		Data:   msgData,
+		Server: server.ID,
+	}
+	data, _ := json.Marshal(resp)
+	nc.Publish(msg.Reply, data)
+}
+
 
 //CADASTRO
 /*func HandleRegister(server *models.Server, request shared.Request, nc *nats.Conn, message *nats.Msg) {

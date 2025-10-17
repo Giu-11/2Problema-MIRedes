@@ -13,3 +13,4 @@ func NewServer(id int, port string, peers []PeerInfo) *Server {
         Users: make(map[string]shared.User),
     }
 }
+

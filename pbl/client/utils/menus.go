@@ -38,7 +38,7 @@ func ShowMenuPrincipal() string {
 	fmt.Println("3 - Abrir pacote")
 	fmt.Println("4 - Trocar cartas")
 	fmt.Println("5 - Visualizar regras")
-	fmt.Println("6 - Visualizar ping")
+	fmt.Println("6 - Visualizar ping") //precisa?
 	fmt.Println("7 - Deslogar")
 	fmt.Print("Insira a opção desejada: ")
 	return ReadLineSafe()
