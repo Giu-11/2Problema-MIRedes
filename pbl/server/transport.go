@@ -1,4 +1,3 @@
-// pbl/server/transport.go (VERSÃO CORRIGIDA)
 package main
 
 import (

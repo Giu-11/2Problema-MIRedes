@@ -35,7 +35,7 @@ func (fsm *FSM) Apply(logEntry *raft.Log) interface{} {
 	}
 
 	switch cmd.Type {
-	case sharedRaft.CommandRegisterUser:
+	case sharedRaft.CommandLoginUser:
 		var user shared.User
 		if err := json.Unmarshal(cmd.Data, &user); err != nil {
 			log.Printf("[FSM] ERROR: failed to unmarshal user data: %s", err)
@@ -44,13 +44,13 @@ func (fsm *FSM) Apply(logEntry *raft.Log) interface{} {
 		log.Printf("[FSM] Applying command: Register User '%s'", user.UserName)
 		fsm.users[user.UserName] = user
 		return nil
+
 	default:
 		return fmt.Errorf("unrecognized command type: %s", cmd.Type)
 	}
 }
 
 // cria saves do estado do servidor
-// por enquanto somente os usuarios
 func (fsm *FSM) Snapshot() (raft.FSMSnapshot, error) {
 	fsm.mu.Lock()
 	defer fsm.mu.Unlock()

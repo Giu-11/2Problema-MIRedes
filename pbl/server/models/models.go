@@ -1,6 +1,7 @@
 package models
 
 import (
+	"pbl/shared"
 	"sync"
 
 	"github.com/hashicorp/raft"
@@ -12,6 +13,7 @@ type Server struct {
 	SelfURL string
 	Peers   []PeerInfo
 	Raft    *raft.Raft
+	Users   map[string]shared.User
 	Mu      sync.Mutex
 }
 

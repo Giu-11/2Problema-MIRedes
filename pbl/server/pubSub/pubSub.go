@@ -37,13 +37,12 @@ func StartNats(server *models.Server) (*nats.Conn, error) {
 
 		//Chama o handler correto
 		switch req.Action {
-		case "REGISTER":
-			handlers.HandleRegister(server, req, nc, msg)
-		/*case "LOGIN":
-			handlers.HandleLogin(server, req, nc, msg)*/
 		case "CHOOSE_SERVER":
 			handlers.HandleChooseServer(server, req, nc, msg)
+		case "LOGIN":
+			handlers.HandleLogin(server, req, nc, msg)
 		}
+
 	})
 	if err != nil {
 		return nil, fmt.Errorf("erro ao se inscrever no tópico: %w", err)

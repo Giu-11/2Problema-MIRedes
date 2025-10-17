@@ -6,11 +6,11 @@ import (
 	"log"
 	"net/http"
 	"pbl/server/models"
-	sharedRaft "pbl/server/shared"
-	"pbl/shared"
-	"time"
 
-	"github.com/hashicorp/raft"
+	//sharedRaft "pbl/server/shared"
+	"pbl/shared"
+
+	//"github.com/hashicorp/raft"
 	"github.com/nats-io/nats.go"
 )
 
@@ -35,33 +35,32 @@ func PingHandler(serverID int) http.HandlerFunc {
 	}
 }
 
-
 func HandleChooseServer(server *models.Server, request shared.Request, nc *nats.Conn, message *nats.Msg) {
-    // Pega o server_id do payload do cliente (mesmo que seja esse servidor)
-    var payloadData map[string]int
-    if err := json.Unmarshal(request.Payload, &payloadData); err != nil {
-        log.Printf("[%d] - Erro ao decodificar payload: %v", server.ID, err)
-        return
-    }
+	// Pega o server_id do payload do cliente (mesmo que seja esse servidor)
+	var payloadData map[string]int
+	if err := json.Unmarshal(request.Payload, &payloadData); err != nil {
+		log.Printf("[%d] - Erro ao decodificar payload: %v", server.ID, err)
+		return
+	}
 
-    chosenServerID := payloadData["server_id"]
-    log.Printf("[%d] - Cliente %s escolheu este servidor (ID=%d)", server.ID, request.ClientID, chosenServerID)
+	chosenServerID := payloadData["server_id"]
+	log.Printf("[%d] - Cliente %s escolheu este servidor (ID=%d)", server.ID, request.ClientID, chosenServerID)
 
-    // Resposta para o cliente confirmando que ele escolheu o servidor
-    response := shared.Response{
-        Status: "success",
-        Action: "CHOOSE_SERVER",
-        Server: server.ID,
-    }
-    data, _ := json.Marshal(response)
+	// Resposta para o cliente confirmando que ele escolheu o servidor
+	response := shared.Response{
+		Status: "success",
+		Action: "CHOOSE_SERVER",
+		Server: server.ID,
+	}
+	data, _ := json.Marshal(response)
 
-    if message.Reply != "" {
-        nc.Publish(message.Reply, data)
-    }
+	if message.Reply != "" {
+		nc.Publish(message.Reply, data)
+	}
 }
 
 //CADASTRO
-func HandleRegister(server *models.Server, request shared.Request, nc *nats.Conn, message *nats.Msg) {
+/*func HandleRegister(server *models.Server, request shared.Request, nc *nats.Conn, message *nats.Msg) {
     // 1. Verifica se este nó é o líder. Só o líder deve aceitar escritas.
     if server.Raft.State() != raft.Leader {
         // Redireciona para o líder ou retorna um erro
@@ -75,11 +74,10 @@ func HandleRegister(server *models.Server, request shared.Request, nc *nats.Conn
     // 2. Monta o comando para o log do Raft
     cmd := sharedRaft.Command{
         Type: sharedRaft.CommandRegisterUser,
-        Data: request.Payload, // O payload já é o JSON do usuário
+        Data: request.Payload, //O payload já é o JSON do usuário
     }
     cmdBytes, err := json.Marshal(cmd)
     if err != nil {
-        // ... trata o erro ...
         return
     }
 
@@ -100,4 +98,53 @@ func HandleRegister(server *models.Server, request shared.Request, nc *nats.Conn
     }
     data, _ := json.Marshal(response)
     nc.Publish(message.Reply, data)
+}*/
+
+func HandleLogin(server *models.Server, request shared.Request, nc *nats.Conn, message *nats.Msg) {
+    //TODO: lidar com clientes já logados(não logar quem já logou)
+	var userCredentials shared.User
+	if err := json.Unmarshal(request.Payload, &userCredentials); err != nil {
+		log.Printf("[%d] Erro no payload de login: %v", server.ID, err)
+		return
+	}
+
+	//Bloqueia o mapa de usuários para evitar problemas de concorrência
+	server.Mu.Lock()
+	defer server.Mu.Unlock()
+
+	// Verifica se o usuário já existe no mapa LOCAL deste servidor
+	existingUser, exists := server.Users[userCredentials.UserName]
+
+	var response shared.Response
+
+	if exists {
+		// Usuário existe, verifica a senha
+		if existingUser.Password == userCredentials.Password {
+			log.Printf("[%d] - Usuário '%s' logado com sucesso.", server.ID, userCredentials.UserName)
+			response = shared.Response{
+				Status: "success",
+				Action: "LOGIN_SUCCESS",
+				Server: server.ID,
+			}
+		} else {
+			log.Printf("[%d] - Tentativa de login falhou para '%s': senha incorreta.", server.ID, userCredentials.UserName)
+			response = shared.Response{
+				Status: "error",
+				Action: "LOGIN_FAIL",
+				Error:  "Senha incorreta.",
+				Server: server.ID,
+			}
+		}
+	} else {
+		log.Printf("[%d] - Usuário '%s' não encontrado. Criando novo usuário local.", server.ID, userCredentials.UserName)
+		server.Users[userCredentials.UserName] = userCredentials
+		response = shared.Response{
+			Status: "success",
+			Action: "LOGIN_SUCCESS",
+			Server: server.ID,
+		}
+	}
+
+	data, _ := json.Marshal(response)
+	nc.Publish(message.Reply, data)
 }

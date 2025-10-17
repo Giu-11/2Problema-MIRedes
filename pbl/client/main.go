@@ -20,8 +20,6 @@ type ServerInfo struct {
 }
 
 func main() {
-	//TODO: substituir hardcoded servers por descoberta dinâmica via Pub/Sub (veremos)
-	//agora tá conectando por localhost mas tem que mudar isso depois
 	servers := []ServerInfo{
 		{ID: 1, Name: "Servidor 1", NATS: "nats://localhost:4223"},
 		{ID: 2, Name: "Servidor 2", NATS: "nats://localhost:4224"},
@@ -30,124 +28,115 @@ func main() {
 
 	chooseString := utils.EscolherServidor()
 	chooseInt, err := strconv.Atoi(chooseString)
-	if err != nil {
-		fmt.Println("Erro ao converter")
+	if err != nil || chooseInt < 1 || chooseInt > len(servers) {
+		fmt.Println("Escolha inválida.")
 		return
 	}
 
 	chosenServer := servers[chooseInt-1]
 	fmt.Printf("Você escolheu: %s (ID=%d)\n", chosenServer.Name, chosenServer.ID)
 
-	//Conectando ao nats do servidor escolhido pelo cliente
 	nc, err := nats.Connect(chosenServer.NATS)
 	if err != nil {
 		log.Fatalf("Erro ao conectar no NATS do servidor escolhido: %v", err)
 	}
 	defer nc.Close()
-	log.Println("Conectado ao NATS do servidor escolhido: ", chosenServer.NATS)
+	log.Println("Conectado ao NATS do servidor escolhido:", chosenServer.NATS)
 
-	//Monta payload da escolha do servidor
-	payload := map[string]int{"server_id": chosenServer.ID}
+	clienteID := fmt.Sprintf("cliente%d", utils.GerarIdAleatorio())
+	log.Printf("Seu ID de cliente para esta sessão é: %s\n", clienteID)
 
-	payloadJSON, _ := json.Marshal(payload)
+	// Lógica principal do menu
+	handleMainMenu(nc, chosenServer, clienteID)
+}
 
-	cliente := fmt.Sprintf("cliente%d", utils.GerarIdAleatorio())
-
-	//Cria Request
-	req := shared.Request{
-		ClientID: cliente,
-		Action:   "CHOOSE_SERVER",
-		Payload:  json.RawMessage(payloadJSON),
-	}
-
-	dataReq, _ := json.Marshal(req)
-
-	//Publica no tópico do servidor escolhido
-	topic := fmt.Sprintf("server.%d.requests", chosenServer.ID)
-	msg, err := nc.Request(topic, dataReq, 3*time.Second)
-	if err != nil {
-		log.Fatalf("Erro ao publicar escolha do servidor: %v", err)
-	}
-
-	log.Println("Resposta do servidor: ", string(msg.Data))
-
+// handleMainMenu gerencia o loop do menu inicial (antes do login)
+func handleMainMenu(nc *nats.Conn, server ServerInfo, clientID string) {
 	for {
 		option := utils.MenuInicial()
-
 		switch option {
-		case "1": // Cadastro
-			data := utils.Cadastro()
-			jsonData, err := json.Marshal(data)
-
-			log.Printf("data: %s", data)
-			log.Printf("\njson data: %s", jsonData)
-
-			if err != nil {
-				log.Printf("Erro ao converter para JSON: %v", err)
-				return
+		case "1": // Login
+			// A função de login agora retorna 'true' se o login for bem-sucedido
+			success := handleLogin(nc, server, clientID)
+			if success {
+				// Se o login funcionou, entramos no menu do jogo
+				handleGameMenu(nc, server, clientID)
 			}
-			
-			req := shared.Request{
-				ClientID: cliente,
-				Action:   "REGISTER",
-				Payload:  json.RawMessage(jsonData),
-			}
-
-			reqData, _ := json.Marshal(req)
-
-			topic := fmt.Sprintf("server.%d.requests", chosenServer.ID)
-			msg, err := nc.Request(topic, reqData, 5*time.Second)
-			if err != nil {
-				if err == nats.ErrTimeout {
-					log.Printf("Timeout ao aguardar resposta do servidor. Tentando novamente...")
-					// Opcional: adicionar retry
-					return
-				}
-				log.Printf("Erro ao publicar cadastro: %v", err)
-				return
-			}
-
-			// Verificar se a mensagem não é nil antes de usar
-			if msg == nil {
-				log.Printf("Resposta vazia do servidor")
-				return
-			}
-
-			// Agora é seguro usar msg.Data
-			var response shared.Response
-			if err := json.Unmarshal(msg.Data, &response); err != nil {
-				log.Printf("Erro ao decodificar resposta: %v", err)
-				return
-			}
-
-			log.Println("Resposta do servidor:", string(msg.Data))
-
-		case "2": //Login
-			data := utils.Login()
-			jsonData, err := json.Marshal(data)
-			if err != nil {
-				log.Printf("Erro ao converter para JSON: %v", err)
-				return
-			}
-			req := shared.Request{
-				ClientID: cliente,
-				Action:   "LOGIN",
-				Payload:  json.RawMessage(jsonData),
-			}
-
-			reqData, _ := json.Marshal(req)
-
-			topic := fmt.Sprintf("server.%d.requests", chosenServer.ID)
-			msg, err := nc.Request(topic, reqData, 5*time.Second)
-			if err != nil {
-				log.Printf("Erro ao publicar cadastro: %v", err)
-			} else {
-				utils.ShowMenuLogin()
-			}
-			log.Println("Resposta do servidor:", string(msg.Data))
-
-		case "3": // Sair
+		case "2": // Sair
+			fmt.Println("Até mais!")
 			return
+		default:
+			fmt.Println("Opção inválida, tente novamente.")
+		}
+	}
+}
+
+// handleLogin cuida do processo de login e trata a resposta
+func handleLogin(nc *nats.Conn, server ServerInfo, clientID string) bool {
+	credentials := utils.Login()
+	jsonData, err := json.Marshal(credentials)
+	if err != nil {
+		log.Printf("Erro ao converter para JSON: %v", err)
+		return false
+	}
+
+	req := shared.Request{
+		ClientID: clientID,
+		Action:   "LOGIN",
+		Payload:  json.RawMessage(jsonData),
+	}
+	reqData, _ := json.Marshal(req)
+
+	topic := fmt.Sprintf("server.%d.requests", server.ID)
+	msg, err := nc.Request(topic, reqData, 5*time.Second)
+	if err != nil {
+		if err == nats.ErrTimeout {
+			log.Println("Erro: O servidor não respondeu a tempo.")
+		} else {
+			log.Printf("Erro ao enviar requisição de login: %v", err)
+		}
+		return false
+	}
+
+	var response shared.Response
+	if err := json.Unmarshal(msg.Data, &response); err != nil {
+		log.Printf("Erro ao decodificar resposta do servidor: %v", err)
+		return false
+	}
+
+	if response.Status == "success" {
+		fmt.Println("\nLogin realizado com sucesso!")
+		return true
+	} else {
+		fmt.Println("\nFalha no login:", response.Error)
+		return false
+	}
+}
+
+// handleGameMenu gerencia o loop do menu do jogo (após o login)
+func handleGameMenu(nc *nats.Conn, server ServerInfo, clientID string) {
+	// argumento não usado(nc) sera usado no futuro
+	for {
+		option := utils.ShowMenuPrincipal()
+		switch option {
+		case "1": //entrar na fila
+			fmt.Println("Entrando na fila para uma nova partida...")
+			// Aqui viria a lógica para enviar a requisição de matchmaking
+		case "2": //ver e organizar deck
+			fmt.Println("ver deck não implementado..")
+		case "3": //abrir pacote
+			fmt.Println("abrir pacote não implementado")
+		case "4": // troca de cartas
+			fmt.Println("troca de cartas não implentada")
+		case "5": //ver regras
+			utils.ShowRules()
+		case "6": // ping
+			fmt.Println("ping não implemntado")
+		case "7": //sair
+			fmt.Println("Deslogando...")
+			return // Retorna para o menu principal
+		default:
+			fmt.Println("Opção ainda não implementada.")
 		}
 	}
 }
