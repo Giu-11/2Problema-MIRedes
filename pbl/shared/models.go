@@ -12,9 +12,9 @@ type Event struct {
 }
 
 type User struct {
-	UserName string   `json:"username"`
-	UserId string     `json:"user_id"`
-	Password string   `json:"password"`
+	UserName string `json:"username"`
+	UserId   string `json:"user_id"`
+	Password string `json:"password"`
 	Cards    []Card `json:"cards"`
 	Deck     []Card `json:"deck"`
 }
@@ -22,7 +22,7 @@ type User struct {
 type Card struct {
 	Element string `json:"element"`
 	Type    string `json:"type"`
-	Id      int    `json:"id"`
+	Id      string `json:"id"`
 }
 
 type Request struct {
@@ -39,8 +39,13 @@ type Response struct {
 	Server int             `json:"server"`
 }
 type QueueEntry struct {
-	Player User    `json:"user"`
+	Player   User      `json:"user"`
 	ServerID string    `json:"server_id"`
 	Topic    string    `json:"topic"`
 	JoinTime time.Time `json:"join_time"`
+}
+
+type CardDrawnData struct {
+	Card      Card   `json:"card"`
+	RequestID string `json:"requestID"`
 }

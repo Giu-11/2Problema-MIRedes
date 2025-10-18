@@ -8,8 +8,8 @@ import (
 	"strconv"
 	"strings"
 
-	"pbl/server/models"
 	"pbl/server/handlers"
+	"pbl/server/models"
 	"pbl/server/pubSub"
 
 	"github.com/hashicorp/raft"
@@ -21,7 +21,7 @@ func StartServer(idString, port, peersEnv, natsURL string) error {
 	if port == "" {
 		port = "8001"
 	}
-	
+
 	peerInfos := parsePeers(peersEnv)
 
 	server := models.NewServer(id, port, peerInfos)
@@ -86,6 +86,8 @@ func StartServer(idString, port, peersEnv, natsURL string) error {
 
 	http.HandleFunc("/raft", transport.HandleRaftRequest)
 
+	http.HandleFunc("/leader/draw-card", handlers.LeaderDrawCardHandler(server))
+
 	log.Printf("[%d] - Servidor HTTP iniciado na porta %s, pronto para Raft e NATS", server.ID, server.Port)
 	if err := http.ListenAndServe(":"+port, nil); err != nil {
 		log.Fatalf("Erro no servidor HTTP: %v", err)
@@ -93,7 +95,6 @@ func StartServer(idString, port, peersEnv, natsURL string) error {
 
 	return nil
 }
-
 
 func parsePeers(peersEnv string) []models.PeerInfo {
 	var peers []models.PeerInfo

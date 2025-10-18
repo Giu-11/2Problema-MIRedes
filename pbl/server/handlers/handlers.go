@@ -1,11 +1,14 @@
 package handlers
 
 import (
+	"bytes"
 	"encoding/json"
+	"fmt"
 	"io"
 	"log"
 	"net/http"
 	"pbl/server/models"
+	sharedRaft "pbl/server/shared"
 	"strconv"
 	"sync"
 	"time"
@@ -14,6 +17,9 @@ import (
 	"pbl/shared"
 
 	//"github.com/hashicorp/raft"
+
+	"github.com/google/uuid"
+	"github.com/hashicorp/raft"
 	"github.com/nats-io/nats.go"
 )
 
@@ -71,9 +77,9 @@ func HandleChooseServer(server *models.Server, request shared.Request, nc *nats.
 		nc.Publish(message.Reply, data)
 	}
 }
+
 /*
 func HandleLogin(server *models.Server, request shared.Request, nc *nats.Conn, message *nats.Msg) {
-	//TODO: lidar com clientes já logados(não logar quem já logou)
 	var userCredentials shared.User
 	if err := json.Unmarshal(request.Payload, &userCredentials); err != nil {
 		log.Printf("[%d] - Erro no payload de login: %v", server.ID, err)
@@ -123,71 +129,218 @@ func HandleLogin(server *models.Server, request shared.Request, nc *nats.Conn, m
 */
 
 func HandleLogin(server *models.Server, request shared.Request, nc *nats.Conn, msg *nats.Msg) {
-    var user shared.User
-    if err := json.Unmarshal(request.Payload, &user); err != nil {
-        log.Printf("[%d] - Erro ao desserializar login: %v", server.ID, err)
-        resp := shared.Response{
-            Status: "error",
-            Action: "LOGIN_FAIL",
-            Error:  "payload inválido",
-            Server: server.ID,
-        }
-        data, _ := json.Marshal(resp)
-        nc.Publish(msg.Reply, data)
-        return
-    }
+	var user shared.User
+	if err := json.Unmarshal(request.Payload, &user); err != nil {
+		log.Printf("[%d] - Erro ao desserializar login: %v", server.ID, err)
+		resp := shared.Response{
+			Status: "error",
+			Action: "LOGIN_FAIL",
+			Error:  "payload inválido",
+			Server: server.ID,
+		}
+		data, _ := json.Marshal(resp)
+		nc.Publish(msg.Reply, data)
+		return
+	}
 
-    //Bloqueia o mapa de usuários para evitar condições de corrida
-    server.Mu.Lock()
-    server.Users[request.ClientID] = user
-    server.Mu.Unlock()
+	//Bloqueia o mapa de usuários para evitar condições de corrida
+	server.Mu.Lock()
+	server.Users[request.ClientID] = user
+	server.Mu.Unlock()
 
-    log.Printf("[%d] - Usuário '%s' conectado com ClientID '%s'", server.ID, user.UserName, request.ClientID)
+	log.Printf("[%d] - Usuário '%s' conectado com ClientID '%s'", server.ID, user.UserName, request.ClientID)
 
-    //Retorna os dados completos do usuário para o cliente
-    resp := shared.Response{
-        Status: "success",
-        Action: "LOGIN_SUCCESS",
-        Data:   mustMarshal(user), //converte struct User em JSON
-        Server: server.ID,
-    }
-    data, _ := json.Marshal(resp)
-    nc.Publish(msg.Reply, data)
+	//Retorna os dados completos do usuário para o cliente
+	resp := shared.Response{
+		Status: "success",
+		Action: "LOGIN_SUCCESS",
+		Data:   mustMarshal(user), //converte struct User em JSON
+		Server: server.ID,
+	}
+	data, _ := json.Marshal(resp)
+	nc.Publish(msg.Reply, data)
 }
 
-//Helper para converter qualquer struct em json.RawMessage
+// Helper para converter qualquer struct em json.RawMessage
 func mustMarshal(v interface{}) json.RawMessage {
-    b, _ := json.Marshal(v)
-    return json.RawMessage(b)
+	b, _ := json.Marshal(v)
+	return json.RawMessage(b)
 }
 
 func HandleLogout(server *models.Server, request shared.Request, nc *nats.Conn, msg *nats.Msg) {
-    server.Mu.Lock()
-    user, exists := server.Users[request.ClientID]
-    if exists {
-        log.Printf("[%d] - Cliente '%s' desconectado (ClientID: %s)", server.ID, user.UserName, request.ClientID)
-        delete(server.Users, request.ClientID)
-    } else {
-        log.Printf("[%d] - Cliente com ClientID '%s' desconectado (usuário não encontrado)", server.ID, request.ClientID)
-    }
-    server.Mu.Unlock()
+	server.Mu.Lock()
+	user, exists := server.Users[request.ClientID]
+	if exists {
+		log.Printf("[%d] - Cliente '%s' desconectado (ClientID: %s)", server.ID, user.UserName, request.ClientID)
+		delete(server.Users, request.ClientID)
+	} else {
+		log.Printf("[%d] - Cliente com ClientID '%s' desconectado (usuário não encontrado)", server.ID, request.ClientID)
+	}
+	server.Mu.Unlock()
 
-    mu.Lock()
-    delete(activeClients, request.ClientID)
-    mu.Unlock()
+	mu.Lock()
+	delete(activeClients, request.ClientID)
+	mu.Unlock()
 
-    DisconnectClient(server, request.ClientID)
+	DisconnectClient(server, request.ClientID)
 
-    // Resposta para o cliente
-    resp := shared.Response{
-        Status: "success",
-        Action: "LOGOUT_SUCCESS",
-        Server: server.ID,
-    }
-    data, _ := json.Marshal(resp)
-    nc.Publish(msg.Reply, data)
+	// Resposta para o cliente
+	resp := shared.Response{
+		Status: "success",
+		Action: "LOGOUT_SUCCESS",
+		Server: server.ID,
+	}
+	data, _ := json.Marshal(resp)
+	nc.Publish(msg.Reply, data)
 }
 
+func HandleDrawCard(server *models.Server, request shared.Request, nc *nats.Conn, message *nats.Msg) {
+	if server.Raft.State() == raft.Leader {
+		// Se já somos o líder, processamos, salvamos localmente e respondemos.
+		result, err := processDrawCardRequest(server, request.ClientID)
+		if err != nil {
+			respondWithError(nc, message, err.Error())
+			return
+		}
+		saveCardToLocalUser(server, request.ClientID, result)
+		respondWithSuccess(nc, message, result)
+		return
+	}
+
+	// Se não somos o líder, descobrimos quem é e encaminhamos via HTTP REST.
+	leaderAddr := server.Raft.Leader()
+	if leaderAddr == "" {
+		respondWithError(nc, message, "Líder não disponível no momento, tente novamente.")
+		return
+	}
+
+	log.Printf("[%d] Não sou o líder. Encaminhando 'Pegar Carta' para o líder em %s", server.ID, leaderAddr)
+
+	// O formato da mensagem para o líder é um JSON com o clientID.
+	payload := map[string]string{"clientID": request.ClientID}
+	jsonPayload, _ := json.Marshal(payload)
+
+	// Faz uma requisição HTTP POST para o endpoint REST do líder.
+	resp, err := http.Post(fmt.Sprintf("http://%s/leader/draw-card", leaderAddr), "application/json", bytes.NewBuffer(jsonPayload))
+	if err != nil {
+		respondWithError(nc, message, fmt.Sprintf("Falha ao se comunicar com o líder: %v", err))
+		return
+	}
+	defer resp.Body.Close()
+
+	// Repassa a resposta do líder diretamente para o cliente via NATS.
+	var leaderResponse shared.Response
+	if err := json.NewDecoder(resp.Body).Decode(&leaderResponse); err != nil {
+		respondWithError(nc, message, "Resposta inválida do líder.")
+		return
+	}
+
+	if leaderResponse.Status == "success" {
+		var drawnData shared.CardDrawnData
+		if err := json.Unmarshal(leaderResponse.Data, &drawnData); err != nil {
+			respondWithError(nc, message, "Dados da carta inválidos na resposta do líder.")
+			return
+		}
+		saveCardToLocalUser(server, request.ClientID, drawnData.Card)
+	}
+
+	finalResponseBytes, _ := json.Marshal(leaderResponse)
+	nc.Publish(message.Reply, finalResponseBytes)
+}
+
+func LeaderDrawCardHandler(server *models.Server) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		if server.Raft.State() != raft.Leader {
+			http.Error(w, "Eu não sou o líder", http.StatusServiceUnavailable)
+			return
+		}
+
+		var payload map[string]string
+		if err := json.NewDecoder(r.Body).Decode(&payload); err != nil {
+			http.Error(w, "Payload da requisição inválido", http.StatusBadRequest)
+			return
+		}
+		clientID := payload["clientID"]
+
+		result, err := processDrawCardRequest(server, clientID)
+		w.Header().Set("Content-Type", "application/json")
+		if err != nil {
+			response := shared.Response{Status: "error", Error: err.Error(), Server: server.ID}
+			json.NewEncoder(w).Encode(response)
+			return
+		}
+
+		// O líder também salva a carta se o jogador estiver conectado a ele.
+		saveCardToLocalUser(server, clientID, result)
+
+		// Prepara a resposta para o servidor que encaminhou
+		responseData := shared.CardDrawnData{Card: result, RequestID: "n/a for forwarded req"}
+		responseBytes, _ := json.Marshal(responseData)
+		response := shared.Response{Status: "success", Action: "CARD_DRAWN", Data: responseBytes, Server: server.ID}
+		json.NewEncoder(w).Encode(response)
+	}
+}
+
+// saveCardToLocalUser adiciona a carta ao inventário do usuário no servidor local.
+func saveCardToLocalUser(server *models.Server, clientID string, card shared.Card) {
+	server.Mu.Lock()
+	defer server.Mu.Unlock()
+
+	if user, ok := server.Users[clientID]; ok {
+		user.Cards = append(user.Cards, card)
+		server.Users[clientID] = user
+		log.Printf("[%d] Carta '%s' adicionada ao inventário local do cliente %s.", server.ID, card.Type, clientID)
+	}
+}
+
+func processDrawCardRequest(server *models.Server, clientID string) (shared.Card, error) {
+	requestID := uuid.New().String()
+
+	payload := sharedRaft.DrawCardPayload{PlayerID: clientID, RequestID: requestID}
+	payloadBytes, _ := json.Marshal(payload)
+	cmd := sharedRaft.Command{Type: sharedRaft.CommandOpenPack, Data: payloadBytes}
+	cmdBytes, _ := json.Marshal(cmd)
+
+	future := server.Raft.Apply(cmdBytes, 500*time.Millisecond)
+	if err := future.Error(); err != nil {
+		log.Printf("[%d] Erro ao aplicar comando Raft 'DrawCard': %v", server.ID, err)
+		return shared.Card{}, fmt.Errorf("erro interno ao processar a jogada")
+	}
+
+	responseValue := future.Response()
+	if strValue, ok := responseValue.(string); ok && strValue == "STOCK_EMPTY" {
+		return shared.Card{}, fmt.Errorf("o estoque de cartas acabou")
+	}
+
+	drawnCard, ok := responseValue.(shared.Card)
+	if !ok {
+		return shared.Card{}, fmt.Errorf("erro inesperado no tipo de resposta do Raft (esperava shared.Card)")
+	}
+
+	log.Printf("[%d] Carta '%s' reservada para o cliente %s (RequestID: %s).", server.ID, drawnCard.Type, clientID, requestID)
+	go claimCard(server, requestID)
+
+	return drawnCard, nil
+}
+
+// finaliza a transação, removendo a carta da área de pendentes.
+func claimCard(server *models.Server, requestID string) {
+	log.Printf("[%d] Reivindicando carta para o RequestID: %s", server.ID, requestID)
+
+	payload := sharedRaft.ClaimCardPayload{RequestID: requestID}
+	payloadBytes, _ := json.Marshal(payload)
+
+	cmd := sharedRaft.Command{
+		Type: sharedRaft.CommandClaimCard,
+		Data: payloadBytes,
+	}
+	cmdBytes, _ := json.Marshal(cmd)
+
+	future := server.Raft.Apply(cmdBytes, 500*time.Millisecond)
+	if err := future.Error(); err != nil {
+		log.Printf("[%d] ERRO CRÍTICO: Falha ao reivindicar a carta para o RequestID %s: %v", server.ID, requestID, err)
+	}
+}
 
 // Heatbeat para o clinete
 func StartHeartbeatMonitor(server *models.Server, nc *nats.Conn) {
@@ -288,6 +441,21 @@ func HandleJoinQueue(server *models.Server, request shared.Request, nc *nats.Con
 	nc.Publish(msg.Reply, data)
 }
 
+// Função auxiliar para enviar respostas de sucesso
+func respondWithSuccess(nc *nats.Conn, msg *nats.Msg, card shared.Card) {
+	responseData := shared.CardDrawnData{Card: card, RequestID: "client-facing-id"}
+	responseBytes, _ := json.Marshal(responseData)
+	response := shared.Response{Status: "success", Action: "CARD_DRAWN", Data: responseBytes}
+	finalBytes, _ := json.Marshal(response)
+	nc.Publish(msg.Reply, finalBytes)
+}
+
+// Função auxiliar para enviar respostas de erro
+func respondWithError(nc *nats.Conn, msg *nats.Msg, errorMsg string) {
+	response := shared.Response{Status: "error", Error: errorMsg}
+	data, _ := json.Marshal(response)
+	nc.Publish(msg.Reply, data)
+}
 
 //CADASTRO
 /*func HandleRegister(server *models.Server, request shared.Request, nc *nats.Conn, message *nats.Msg) {

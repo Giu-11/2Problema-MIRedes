@@ -41,12 +41,14 @@ func StartNats(server *models.Server) (*nats.Conn, error) {
 			handlers.HandleChooseServer(server, req, nc, msg)
 		case "LOGIN":
 			handlers.HandleLogin(server, req, nc, msg)
-		case "HEARTBEAT": 
+		case "HEARTBEAT":
 			handlers.HandleHeartbeat(server.ID, req, nc, msg)
-		case "LOGOUT": 
-    		handlers.HandleLogout(server, req, nc, msg)
+		case "LOGOUT":
+			handlers.HandleLogout(server, req, nc, msg)
 		case "JOIN_QUEUE":
 			handlers.HandleJoinQueue(server, req, nc, msg)
+		case "OPEN_PACK":
+			handlers.HandleDrawCard(server, req, nc, msg)
 		}
 
 	})

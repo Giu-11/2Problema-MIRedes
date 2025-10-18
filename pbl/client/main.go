@@ -14,6 +14,7 @@ import (
 	"pbl/client/models"
 	"pbl/client/utils"
 	"pbl/shared"
+	"pbl/style"
 
 	"github.com/nats-io/nats.go"
 )
@@ -140,6 +141,7 @@ func startGameLoop(nc *nats.Conn, server models.ServerInfo, clientID string, use
 		option := utils.ShowMenuPrincipal()
 		switch option {
 		case "1": // Entrar na fila
+			style.Clear()
 			fmt.Println("Entrando na fila para uma nova partida...")
 			clientTopic := fmt.Sprintf("client.%s.inbox", clientID)
 			success := game.JoinQueue(nc, server, user, clientTopic)
@@ -148,16 +150,22 @@ func startGameLoop(nc *nats.Conn, server models.ServerInfo, clientID string, use
 			}
 
 		case "2":
+			style.Clear()
 			fmt.Println("Ver deck não implementado..")
 		case "3":
-			fmt.Println("Abrir pacote não implementado")
+			style.Clear()
+			handleClientDrawCard(nc, server, clientID)
 		case "4":
+			style.Clear()
 			fmt.Println("Troca de cartas não implementada")
 		case "5":
+			style.Clear()
 			utils.ShowRules()
 		case "6":
+			style.Clear()
 			fmt.Println("Ping não implementado")
 		case "7":
+			style.Clear()
 			fmt.Println("Deslogando...")
 			logout(nc, server, clientID)
 			return
@@ -200,6 +208,48 @@ func logout(nc *nats.Conn, server models.ServerInfo, clientID string) {
 	}
 }
 
+func handleClientDrawCard(nc *nats.Conn, server models.ServerInfo, clienteID string) {
+	fmt.Println("Enviando requisição para pegar uma carta...")
+	req := shared.Request{
+		ClientID: clienteID,
+		Action:   "OPEN_PACK",
+		Payload:  nil,
+	}
+	reqData, _ := json.Marshal(req)
+
+	topic := fmt.Sprintf("server.%d.requests", server.ID)
+	msg, err := nc.Request(topic, reqData, 5*time.Second)
+
+	if err != nil {
+		log.Printf("Erro na requisição para pegar carta: %v", err)
+		return // Sai da função imediatamente para evitar o crash.
+	}
+
+	// Como segurança extra, verificamos se a mensagem é válida antes de usá-la.
+	if msg == nil || msg.Data == nil {
+		log.Printf("O servidor retornou uma resposta vazia.")
+		return
+	}
+
+	var response shared.Response
+	if err := json.Unmarshal(msg.Data, &response); err != nil {
+		log.Printf("Erro ao decodificar resposta da jogada: %v", err)
+		return
+	}
+
+	if response.Status == "success" {
+		var drawnData shared.CardDrawnData
+		if err := json.Unmarshal(response.Data, &drawnData); err != nil {
+			log.Printf("Erro ao decodificar os dados da carta: %v", err)
+			return
+		}
+		style.PrintVerd("\n[SUCESSO] Você pegou uma carta!\n")
+		fmt.Printf("   -> Carta: %s %s\n", drawnData.Card.Element, drawnData.Card.Type)
+	} else {
+		msg := fmt.Sprintf("\n[FALHA] Não foi possível pegar a carta: %s\n", response.Error)
+		style.PrintVerm(msg)
+	}
+}
 
 // startHeartbeat envia HEARTBEAT periódico
 func startHeartbeat(nc *nats.Conn, clientID, serverTopic string) {
