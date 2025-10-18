@@ -144,7 +144,23 @@ func startGameLoop(nc *nats.Conn, server models.ServerInfo, clientID string, use
 			clientTopic := fmt.Sprintf("client.%s.inbox", clientID)
 			success := game.JoinQueue(nc, server, user, clientTopic)
 			if success {
-				fmt.Println("Aguardando match...")
+				fmt.Println("Entrando na fila de espera...")
+				matchChan := make(chan bool)
+				go utils.ShowWaitingScreen(user, matchChan)
+
+				go func(){
+					clientTopic := fmt.Sprintf("client.%s.inbox", clientID)
+					sub, _ := nc.SubscribeSync(clientTopic)
+					for{
+						msg, _ := sub.NextMsg(0)
+						var resp shared.Response
+						json.Unmarshal(msg.Data, &resp)
+						if resp.Action == "MATCH"{
+							matchChan <- true
+							break
+						}
+					}
+				}()
 			}
 
 		case "2":

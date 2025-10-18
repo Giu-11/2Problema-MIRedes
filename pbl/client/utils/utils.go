@@ -1,15 +1,18 @@
 package utils
 
 import(
-	"bufio"
+	"os"
     "fmt"
-    "os"
+	"math"
+	"time"
+	"bufio"
     "strings"
 	"os/exec"
 	"runtime"
-	"math"
 	"crypto/rand"
 	"encoding/binary"
+
+	"pbl/shared"
 )
 
 func ReadLineSafe() string {
@@ -47,4 +50,23 @@ func GerarIdAleatorio() int {
 	id := int(binary.LittleEndian.Uint32(b[:]))
 	fmt.Println("ID:", id)
 	return int(math.Abs(float64(id)))
+}
+
+func ShowWaitingScreen(user shared.User, matchChan chan bool) {
+    fmt.Printf("Olá %s! Entrou na fila. Aguardando pareamento...\n", user.UserName)
+    
+    spinner := []string{"|", "/", "-", "\\"}
+    i := 0
+
+    for {
+        select {
+        case <-matchChan:
+            fmt.Println("\nParabéns! Match encontrado! Preparando partida...")
+            return
+        default:
+            fmt.Printf("\r%s Aguardando pareamento...", spinner[i%len(spinner)])
+            i++
+            time.Sleep(300 * time.Millisecond)
+        }
+    }
 }

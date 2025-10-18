@@ -5,8 +5,10 @@ import (
 	"pbl/shared"
 	"sync"
 	"crypto/rand"
+	"math/big"
 	"math"
 	"encoding/binary"
+	"strconv"
 )
 
 var (
@@ -17,7 +19,8 @@ var (
 func CreateRoom(player1, player2 shared.User) *models.Room{
 	roomID := generateRoomID()
 	var turn shared.User
-	if rand.Intn(2) == 0 {
+	n, _ := rand.Int(rand.Reader, big.NewInt(2)) //sorteia a vez
+	if n.Int64() == 0 {
 		turn = player1
 	} else {
 		turn = player2
@@ -39,12 +42,13 @@ func CreateRoom(player1, player2 shared.User) *models.Room{
 }
 
 
-func generateRoomID() int {
+func generateRoomID() string {
 	var b [4]byte
 	_, err := rand.Read(b[:])
 	if err != nil {
 		panic(err)
 	}
 	id := int(binary.LittleEndian.Uint32(b[:]))
-	return int(math.Abs(float64(id)))
+	return strconv.Itoa(int(math.Abs(float64(id))))
 }
+

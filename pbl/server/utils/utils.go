@@ -52,6 +52,7 @@ ifaces, err := net.Interfaces()
 	return "", fmt.Errorf("não foi possível detectar um IP local válido")
 }
 
+//PODE APAGAR ISSO AQUI --> TAVA SENDO USADO NO BULLY
 //Para enciar a mensagem de eleição 
 func SendElectionMessage(peerURL string, message models.ElectionMessage) error {
 	data, err := json.Marshal(message)

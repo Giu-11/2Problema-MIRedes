@@ -248,48 +248,7 @@ func HandleHeartbeat(serverID int, request shared.Request, nc *nats.Conn, msg *n
 
 }
 
-// Colocar cliente na fila --> tem dois tipos de fila, a do servidor que ele tá e a "global"
-func HandleJoinQueue(server *models.Server, request shared.Request, nc *nats.Conn, msg *nats.Msg) {
-	var entry shared.QueueEntry
-	if err := json.Unmarshal(request.Payload, &entry); err != nil {
-		log.Printf("Erro ao desserializar payload do JOIN_QUEUE: %v", err)
-		resp := shared.Response{
-			Status: "error",
-			Error:  "Payload inválido",
-		}
-		data, _ := json.Marshal(resp)
-		nc.Publish(msg.Reply, data)
-		return
-	}
-
-	// Adiciona na fila local
-	server.Matchmaking.Mutex.Lock()
-	server.Matchmaking.LocalQueue = append(server.Matchmaking.LocalQueue, entry)
-	server.Matchmaking.Mutex.Unlock()
-
-	log.Printf("Cliente %s entrou na fila local do servidor %d", entry.Player.UserName, server.ID)
-
-	//Se for líder, adiciona também na fila global
-	if server.Matchmaking.IsLeader {
-		server.Matchmaking.Mutex.Lock()
-		server.Matchmaking.GlobalQueue = append(server.Matchmaking.GlobalQueue, entry)
-		server.Matchmaking.Mutex.Unlock()
-		log.Printf("Cliente %s adicionado na fila global (servidor líder)", entry.Player.UserName)
-	}
-
-	//Responde para o cliente
-	msgData, _ := json.Marshal("Cliente adicionado à fila com sucesso")
-	resp := shared.Response{
-		Status: "success",
-		Data:   msgData,
-		Server: server.ID,
-	}
-	data, _ := json.Marshal(resp)
-	nc.Publish(msg.Reply, data)
-}
-
-
-//CADASTRO
+//CADASTRO --> Jogado fora por falta de tempo
 /*func HandleRegister(server *models.Server, request shared.Request, nc *nats.Conn, message *nats.Msg) {
     // 1. Verifica se este nó é o líder. Só o líder deve aceitar escritas.
     if server.Raft.State() != raft.Leader {

@@ -17,6 +17,7 @@ type User struct {
 	Password string   `json:"password"`
 	Cards    []Card `json:"cards"`
 	Deck     []Card `json:"deck"`
+	Status string
 }
 
 type Card struct {

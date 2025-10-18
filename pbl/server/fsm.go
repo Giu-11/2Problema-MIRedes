@@ -24,7 +24,7 @@ func NewFSM() *FSM {
 	}
 }
 
-// aplica um comando ao raft
+//aplica um comando ao raft
 func (fsm *FSM) Apply(logEntry *raft.Log) interface{} {
 	fsm.mu.Lock()
 	defer fsm.mu.Unlock()
