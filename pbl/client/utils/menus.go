@@ -48,7 +48,40 @@ func ShowRules() {
 	fmt.Println("\n----------------------------------")
 	fmt.Println("              Regras              ")
 	fmt.Println("----------------------------------")
-	fmt.Println("")
-	//tem que escolher o jogo
+	fmt.Println("Ao fazer o cadastro você recebeu\n5 cartas. Sendo elas: AGUA, TERRA,\nFOGO, AR e MATO")
+	fmt.Println("\nCada carta tem seus pontos fortes\ne fracos:")
+	fmt.Println("\n ÁGUA")
+	fmt.Println(" Forte contra FOGO")
+	fmt.Println(" Fraco contra AR")
 
+	fmt.Println("\n TERRA")
+	fmt.Println(" Forte contra AR")
+	fmt.Println(" Fraco contra FOGO")
+
+	fmt.Println("\n FOGO")
+	fmt.Println(" Forte contra TERRA")
+	fmt.Println(" Fraco contra ÁGUA")
+
+	fmt.Println("\n AR")
+	fmt.Println(" Forte contra ÁGUA")
+	fmt.Println(" Fraco contra TERRA")
+
+	fmt.Println("\n MATO")
+	fmt.Println(" Carta MISTERIOSA")
+
+	fmt.Println("----------------------------------")
+
+}
+
+func ShowMenuDeck() string {
+	fmt.Println("\n--------------------------------")
+	fmt.Println("            Menu deck           ")
+	fmt.Println("--------------------------------")
+	fmt.Println("1 - Visualizar todas as cartas")
+	fmt.Println("2 - Visualizar cartas do deck")
+	fmt.Println("3 - Alterar o deck")
+	fmt.Println("4 - Voltar ao menu principal")
+	fmt.Print("Insira a opção desejada: ")
+	input := ReadLineSafe()
+	return input
 }

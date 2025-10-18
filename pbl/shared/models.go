@@ -40,7 +40,7 @@ type Response struct {
 	Server int             `json:"server"`
 }
 type QueueEntry struct {
-	Player User    `json:"user"`
+	Player *User    `json:"user"`
 	ServerID string    `json:"server_id"`
 	Topic    string    `json:"topic"`
 	JoinTime time.Time `json:"join_time"`

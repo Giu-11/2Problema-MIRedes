@@ -2,6 +2,7 @@ package handlers
 
 import (
 	"encoding/json"
+	"fmt"
 	"log"
 	"pbl/server/game"
 	"pbl/server/models"
@@ -13,7 +14,7 @@ import (
 	"github.com/nats-io/nats.go"
 )
 
-//Colocar cliente na fila --> fila local
+// Colocar cliente na fila --> fila local
 func HandleJoinQueue(server *models.Server, request shared.Request, nc *nats.Conn, msg *nats.Msg) {
 	var entry shared.QueueEntry
 	if err := json.Unmarshal(request.Payload, &entry); err != nil {
@@ -49,11 +50,12 @@ func HandleJoinQueue(server *models.Server, request shared.Request, nc *nats.Con
 	nc.Publish(msg.Reply, data)
 }
 
-//Monitora a fila local e move jogadores para a fila global se passarem de 5s
+// Monitora a fila local e move jogadores para a fila global se passarem de 5s
 func MonitorLocalQueue(server *models.Server, nc *nats.Conn) {
 	ticker := time.NewTicker(1 * time.Second)
 
 	for range ticker.C {
+		log.Printf("[Matchmaking] Verificando fila local...")
 		now := time.Now()
 
 		server.Matchmaking.Mutex.Lock()
@@ -80,15 +82,14 @@ func MonitorLocalQueue(server *models.Server, nc *nats.Conn) {
 		MatchLocalQueue(server)
 
 		//tem que implementat a parte global
-		
+
 	}
 }
-
 
 // Envia o jogador ao líder
 func sendToGlobalQueue(entry shared.QueueEntry, server *models.Server, nc *nats.Conn) {
 	isLeader := server.Raft.State() == raft.Leader
-    leaderAddr := string(server.Raft.Leader())
+	leaderAddr := string(server.Raft.Leader())
 
 	if !isLeader {
 		if leaderAddr == "" {
@@ -114,7 +115,7 @@ func sendToGlobalQueue(entry shared.QueueEntry, server *models.Server, nc *nats.
 	}
 }
 
-//Adiciona cliente na fila global do líder e replica via Raft
+// Adiciona cliente na fila global do líder e replica via Raft
 func handleJoinGlobalQueueLeader(entry shared.QueueEntry, server *models.Server) {
 	// Protege acesso à fila global
 	server.Matchmaking.Mutex.Lock()
@@ -132,29 +133,63 @@ func handleJoinGlobalQueueLeader(entry shared.QueueEntry, server *models.Server)
 	server.Raft.Apply(data, 5*time.Second) //replica o estado
 }
 
-func MatchLocalQueue(server *models.Server){
+func MatchLocalQueue(server *models.Server) {
 	server.Matchmaking.Mutex.Lock()
 	defer server.Matchmaking.Mutex.Unlock()
 
-	for len(server.Matchmaking.LocalQueue) >= 2{
+	for len(server.Matchmaking.LocalQueue) >= 2 {
 		player1 := server.Matchmaking.LocalQueue[0].Player
 		player2 := server.Matchmaking.LocalQueue[1].Player
 
-		if player1.Status != "free" || player2.Status != "free"{
+		if player1.Status != "available" || player2.Status != "available" {
 			break
 		}
 
-		player1.Status = "jogando"
-		player2.Status = "jogando"
+		player1.Status = "playing"
+		player2.Status = "playing"
 
+		//cria sala
 		room := game.CreateRoom(player1, player2)
-		log.Printf("\n[Server %d] - Nova partida craida: %s (%s vs %s)", server.ID, room.ID, player1.UserName, player2.UserName)
+		log.Printf("\n[Server %d] - Nova partida criada: %s (%s vs %s)",
+			server.ID, room.ID, player1.UserName, player2.UserName)
 
+		//remove da fila
 		server.Matchmaking.LocalQueue = server.Matchmaking.LocalQueue[2:]
+
+		//envia mensagem MATCH para os dois clientes
+		sendMatchNotification(server, room)
 	}
 }
 
-//listar as filas
+func sendMatchNotification(server *models.Server, room *models.Room) {
+	data, err := json.Marshal(room)
+	if err != nil {
+		log.Printf("Erro ao serializar room: %v", err)
+		return
+	}
+
+	resp := shared.Response{
+		Action: "MATCH",
+		Status: "success",
+		Data:   data,
+		Server: server.ID,
+	}
+
+	msgData, _ := json.Marshal(resp)
+
+	nc := server.Matchmaking.Nc
+
+	topic1 := fmt.Sprintf("client.%s.inbox", room.Player1.UserId)
+	topic2 := fmt.Sprintf("client.%s.inbox", room.Player2.UserId)
+
+	nc.Publish(topic1, msgData)
+	nc.Publish(topic2, msgData)
+
+	log.Printf("[Server %d] - Match enviado para %s e %s",
+		server.ID, room.Player1.UserName, room.Player2.UserName)
+}
+
+// listar as filas
 func ListLocalQueue(server *models.Server) []string {
 	server.Matchmaking.Mutex.Lock()
 	defer server.Matchmaking.Mutex.Unlock()

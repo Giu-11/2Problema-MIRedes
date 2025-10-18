@@ -52,7 +52,7 @@ func GerarIdAleatorio() int {
 	return int(math.Abs(float64(id)))
 }
 
-func ShowWaitingScreen(user shared.User, matchChan chan bool) {
+func ShowWaitingScreen(user shared.User, matchChan <-chan bool, doneChan <-chan struct{}) {
     fmt.Printf("Olá %s! Entrou na fila. Aguardando pareamento...\n", user.UserName)
     
     spinner := []string{"|", "/", "-", "\\"}
@@ -60,7 +60,7 @@ func ShowWaitingScreen(user shared.User, matchChan chan bool) {
 
     for {
         select {
-        case <-matchChan:
+        case <-doneChan:
             fmt.Println("\nParabéns! Match encontrado! Preparando partida...")
             return
         default:

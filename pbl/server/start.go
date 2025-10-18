@@ -26,15 +26,15 @@ func StartServer(idString, port, peersEnv, natsURL string) error {
 
 	server := models.NewServer(id, port, peerInfos)
 
-	// configuração do raft com Transporte HTTP
+	//configuração do raft com Transporte HTTP
 	config := raft.DefaultConfig()
 	config.LocalID = raft.ServerID(idString)
 
-	// O endereço para o transporte Raft
+	//O endereço para o transporte Raft
 	raftAddr := "0.0.0.0:" + port
 	transport := NewHTTPTransport(raft.ServerAddress(raftAddr))
 
-	// O resto da configuração do Raft (snapshots, log store, FSM)
+	//O resto da configuração do Raft (snapshots, log store, FSM)
 	dataDir := filepath.Join(".", "raft_data", idString)
 	os.MkdirAll(dataDir, 0700)
 
@@ -56,9 +56,9 @@ func StartServer(idString, port, peersEnv, natsURL string) error {
 	}
 	server.Raft = ra
 
-	// bootstrap do cluster
+	//bootstrap do cluster
 	var configuration raft.Configuration
-	// Adiciona o próprio servidor
+	//Adiciona o próprio servidor
 	selfAddr := "server" + idString + ":" + port
 	configuration.Servers = []raft.Server{
 		{
@@ -81,6 +81,12 @@ func StartServer(idString, port, peersEnv, natsURL string) error {
 	if err != nil {
 		log.Fatalf("Erro NATS: %v", err)
 	}
+
+	//Para rodar em background até acontecer o match
+	server.Matchmaking.Nc = nc
+	go handlers.MonitorLocalQueue(server, nc)
+	log.Printf("[Servidor %d] Monitor de matchmaking iniciado.", server.ID)
+
 
 	handlers.StartHeartbeatMonitor(server, nc)
 

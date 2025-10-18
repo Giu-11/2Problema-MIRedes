@@ -16,14 +16,14 @@ var (
 	GameRoomsMu sync.RWMutex
 )
 
-func CreateRoom(player1, player2 shared.User) *models.Room{
+func CreateRoom(player1, player2 *shared.User) *models.Room{
 	roomID := generateRoomID()
 	var turn shared.User
 	n, _ := rand.Int(rand.Reader, big.NewInt(2)) //sorteia a vez
 	if n.Int64() == 0 {
-		turn = player1
+		turn = *player1
 	} else {
-		turn = player2
+		turn = *player2
 	}
 
 	room := &models.Room{

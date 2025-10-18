@@ -15,8 +15,10 @@ const (
 
 type Room struct {
 	ID        string         `json:"id"`
-	Player1   shared.User    `json:"player1"`
-	Player2   shared.User    `json:"player2"`
+	Player1   *shared.User    `json:"player1"`
+	Player2   *shared.User    `json:"player2"`
+	Player1ClientID string
+    Player2ClientID string
 	Turn      shared.User    `json:"turn"`
 	Status    GameStatus     `json:"status"`
 	Winner    *shared.User   `json:"winner,omitempty"`

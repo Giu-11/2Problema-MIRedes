@@ -12,14 +12,14 @@ import (
 	"github.com/nats-io/nats.go"
 )
 
-
-func JoinQueue(nc *nats.Conn, server models.ServerInfo, user shared.User, clientTopic string) bool {
+func JoinQueue(nc *nats.Conn, server models.ServerInfo, user *shared.User, clientTopic string) bool {
 	entry := shared.QueueEntry{
-		Player:   user, 
+		Player:   user,
 		ServerID: fmt.Sprintf("%d", server.ID),
 		Topic:    clientTopic,
 		JoinTime: time.Now(),
 	}
+	entry.Player.Status = "available"
 
 	payload, err := json.Marshal(entry)
 	if err != nil {
@@ -64,4 +64,3 @@ func JoinQueue(nc *nats.Conn, server models.ServerInfo, user shared.User, client
 	fmt.Println("Falha ao entrar na fila:", resp.Error)
 	return false
 }
-
