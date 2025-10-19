@@ -47,6 +47,8 @@ func StartNats(server *models.Server) (*nats.Conn, error) {
     		handlers.HandleLogout(server, req, nc, msg)
 		case "JOIN_QUEUE":
 			handlers.HandleJoinQueue(server, req, nc, msg)
+		case "GAME_MESSAGE":
+    		handlers.HandleGameMessage(server, req, nc, msg)
 		}
 
 	})

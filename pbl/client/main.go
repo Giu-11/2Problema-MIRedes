@@ -162,8 +162,15 @@ func startGameLoop(nc *nats.Conn, server models.ServerInfo, clientID string, use
 				select {
 				case <-matchChan:
 					style.Clear()
-					optionGame := utils.ShowMenuDeck()
-					switch optionGame {
+					//aqui lista as cartas do deck pro usuario jogar e recebe o input
+					game.ChooseCard(user)
+					
+				}
+			}
+
+		case "2": //Ver ou alterar o deck --> não tá implementado cada opção
+			optionGame := utils.ShowMenuDeck()
+			switch optionGame {
 					//sujeito a mudanças
 					case "1": //Visualizar todas as cartas 
 						fmt.Println("Eita opção 1")
@@ -177,11 +184,6 @@ func startGameLoop(nc *nats.Conn, server models.ServerInfo, clientID string, use
 					default:
 						fmt.Println("Digitou errado parceiro")
 					}
-				}
-			}
-
-		case "2":
-			fmt.Println("Ver deck não implementado..")
 		case "3":
 			fmt.Println("Abrir pacote não implementado")
 		case "4":

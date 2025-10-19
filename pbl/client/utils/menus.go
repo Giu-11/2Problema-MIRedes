@@ -2,6 +2,7 @@ package utils
 
 import (
 	"fmt"
+	"pbl/shared"
 )
 
 //MENUS PARA BASE - sujeito a mudanças
@@ -84,4 +85,15 @@ func ShowMenuDeck() string {
 	fmt.Print("Insira a opção desejada: ")
 	input := ReadLineSafe()
 	return input
+}
+
+//Printar as cartas do deck do usuário
+func ListCardsDeck(user *shared.User) {
+	fmt.Println("\n----------------------------------")
+	fmt.Println("             Seu deck             ")
+	fmt.Println("----------------------------------")
+	for i, card := range user.Deck {
+		fmt.Printf("[%d] %s - %s\n", i+1, card.Element, card.Type)
+	}
+	fmt.Println("----------------------------------")
 }

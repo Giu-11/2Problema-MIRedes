@@ -12,6 +12,7 @@ import (
 
 	//sharedRaft "pbl/server/shared"
 	"pbl/shared"
+	"pbl/server/game"
 
 	//"github.com/hashicorp/raft"
 	"github.com/nats-io/nats.go"
@@ -246,6 +247,11 @@ func HandleHeartbeat(serverID int, request shared.Request, nc *nats.Conn, msg *n
 	//log.Printf("[%d] - Heartbeat recebido de %s", serverID, clientID)
 
 }
+
+func HandleGameMessage(server *models.Server, request shared.Request, nc *nats.Conn, msg *nats.Msg) {
+    game.HandleIncomingGameMessage(request.Payload)
+}
+
 
 //CADASTRO --> Jogado fora por falta de tempo
 /*func HandleRegister(server *models.Server, request shared.Request, nc *nats.Conn, message *nats.Msg) {

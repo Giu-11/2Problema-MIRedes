@@ -65,7 +65,7 @@ func MonitorLocalQueue(server *models.Server, nc *nats.Conn) {
 			entry := server.Matchmaking.LocalQueue[i]
 			waitTime := now.Sub(entry.JoinTime)
 
-			if waitTime > 5*time.Second {
+			if waitTime > 10*time.Second {
 				sendToGlobalQueue(entry, server, nc)
 				server.Matchmaking.LocalQueue = append(
 					server.Matchmaking.LocalQueue[:i],
@@ -122,7 +122,7 @@ func handleJoinGlobalQueueLeader(entry shared.QueueEntry, server *models.Server)
 	server.Matchmaking.GlobalQueue = append(server.Matchmaking.GlobalQueue, entry)
 	server.Matchmaking.Mutex.Unlock()
 
-	log.Printf("[DEBUG] Fila local atual: %v", ListLocalQueue(server))
+	log.Printf("[DEBUG] Fila global atual: %v", ListGlobalQueue(server))
 	//Aplica comando Raft para replicação
 	dataEntry, _ := json.Marshal(entry)
 	cmd := sharedRaft.Command{
