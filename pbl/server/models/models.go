@@ -20,7 +20,7 @@ type Server struct {
 
 type Message struct {
 	From    int    `json:"from"`
-	MsgType string `json:"msg_type"`
+	Type string `json:"msg_type"`
 	Msg     string `json:"msg"`
 }
 

@@ -138,6 +138,14 @@ func HandleLogin(server *models.Server, request shared.Request, nc *nats.Conn, m
         return
     }
 
+    //Monta deck inicial do usuário
+    user.Cards = []shared.Card{
+        {Id: 1, Element: "Água", Type: "Normal"},
+        {Id: 2, Element: "Terra", Type: "Normal"},
+        {Id: 3, Element: "Fogo", Type: "Normal"},
+        {Id: 4, Element: "Ar", Type: "Normal"},
+    }
+
     //Bloqueia o mapa de usuários para evitar condições de corrida
     server.Mu.Lock()
     server.Users[request.ClientID] = user
@@ -149,7 +157,7 @@ func HandleLogin(server *models.Server, request shared.Request, nc *nats.Conn, m
     resp := shared.Response{
         Status: "success",
         Action: "LOGIN_SUCCESS",
-        Data:   mustMarshal(user), //converte struct User em JSON
+        Data:   mustMarshal(user), 
         Server: server.ID,
     }
     data, _ := json.Marshal(resp)

@@ -1,18 +1,19 @@
 package utils
 
-import(
-	"os"
-    "fmt"
-	"math"
-	"time"
+import (
 	"bufio"
-    "strings"
-	"os/exec"
-	"runtime"
 	"crypto/rand"
 	"encoding/binary"
+	"fmt"
+	"math"
+	"os"
+	"os/exec"
+	"runtime"
+	"strings"
+	"time"
 
 	"pbl/shared"
+	"pbl/style"
 )
 
 func ReadLineSafe() string {
@@ -53,15 +54,16 @@ func GerarIdAleatorio() int {
 }
 
 func ShowWaitingScreen(user shared.User, matchChan <-chan bool, doneChan <-chan struct{}) {
-    fmt.Printf("Olá %s! Entrou na fila. Aguardando pareamento...\n", user.UserName)
+    style.Clear()
+	fmt.Printf("Olá %s! Entrou na fila. Aguardando pareamento...\n", user.UserName)
     
-    spinner := []string{"|", "/", "-", "\\"}
-    i := 0
+    spinner := []string{"⣾", "⣽", "⣻", "⢿", "⡿", "⣟", "⣯", "⣷"}
+	i := 0
 
     for {
         select {
         case <-doneChan:
-            fmt.Println("\nParabéns! Match encontrado! Preparando partida...")
+            //fmt.Println("\nParabéns! Match encontrado! Preparando partida...")
             return
         default:
             fmt.Printf("\r%s Aguardando pareamento...", spinner[i%len(spinner)])

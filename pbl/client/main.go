@@ -14,20 +14,19 @@ import (
 	"pbl/client/models"
 	"pbl/client/utils"
 	"pbl/shared"
-	"pbl/style"
 
 	"github.com/nats-io/nats.go"
 )
 
 func main() {
-	// Lista de servidores disponíveis
+	//Lista de servidores disponíveis
 	servers := []models.ServerInfo{
 		{ID: 1, Name: "Servidor 1", NATS: "nats://localhost:4223"},
 		{ID: 2, Name: "Servidor 2", NATS: "nats://localhost:4224"},
 		{ID: 3, Name: "Servidor 3", NATS: "nats://localhost:4225"},
 	}
 
-	// Escolha do servidor
+	//Escolha do servidor
 	chooseString := utils.EscolherServidor()
 	chooseInt, err := strconv.Atoi(chooseString)
 	if err != nil || chooseInt < 1 || chooseInt > len(servers) {
@@ -37,7 +36,7 @@ func main() {
 	chosenServer := servers[chooseInt-1]
 	fmt.Printf("Você escolheu: %s (ID=%d)\n", chosenServer.Name, chosenServer.ID)
 
-	// Conexão NATS
+	//Conexão NATS
 	nc, err := nats.Connect(chosenServer.NATS)
 	if err != nil {
 		log.Fatalf("Erro ao conectar no NATS do servidor escolhido: %v", err)
@@ -45,7 +44,7 @@ func main() {
 	defer nc.Close()
 	log.Println("Conectado ao NATS do servidor escolhido:", chosenServer.NATS)
 
-	//ID do cliente para NATS (sessão)
+	//ID do cliente para NATS
 	clientID := fmt.Sprintf("cliente%d", utils.GerarIdAleatorio())
 	log.Printf("Seu ID de cliente para esta sessão é: %s\n", clientID)
 
@@ -58,33 +57,31 @@ func main() {
 		os.Exit(0)
 	}()
 
-	//Inicia o menu inicial (login)
+	//Inicia menu inicial
 	handleMainMenu(nc, chosenServer, clientID)
 }
 
+//Menu inicial
 func handleMainMenu(nc *nats.Conn, server models.ServerInfo, clientID string) {
 	for {
 		option := utils.MenuInicial()
 		switch option {
-		case "1": // Login
+		case "1": //Login
 			user, success := sendLoginRequest(nc, server, clientID)
 			if success {
-				// Se login bem-sucedido, entra no menu do jogo
 				user.UserId = clientID
 				startGameLoop(nc, server, clientID, user)
 			}
-
 		case "2": //Sair
 			fmt.Println("Até mais!")
 			return
-
 		default:
 			fmt.Println("Opção inválida, tente novamente.")
 		}
 	}
 }
 
-//sendLoginRequest: envia credenciais e retorna User completo
+//Login
 func sendLoginRequest(nc *nats.Conn, server models.ServerInfo, clientID string) (shared.User, bool) {
 	credentials := utils.Login()
 	jsonData, err := json.Marshal(credentials)
@@ -103,11 +100,7 @@ func sendLoginRequest(nc *nats.Conn, server models.ServerInfo, clientID string) 
 	topic := fmt.Sprintf("server.%d.requests", server.ID)
 	msg, err := nc.Request(topic, reqData, 5*time.Second)
 	if err != nil {
-		if err == nats.ErrTimeout {
-			log.Println("Erro: O servidor não respondeu a tempo.")
-		} else {
-			log.Printf("Erro ao enviar requisição de login: %v", err)
-		}
+		log.Println("Erro ao enviar requisição de login:", err)
 		return shared.User{}, false
 	}
 
@@ -132,11 +125,14 @@ func sendLoginRequest(nc *nats.Conn, server models.ServerInfo, clientID string) 
 	return shared.User{}, false
 }
 
-//startGameLoop: menu principal após login
+//Loop principal do jogo
 func startGameLoop(nc *nats.Conn, server models.ServerInfo, clientID string, user shared.User) {
-	//Inicia heartbeat para este cliente
+	//Inicia heartbeat
 	serverTopic := fmt.Sprintf("server.%d.requests", server.ID)
 	startHeartbeat(nc, clientID, serverTopic)
+
+	//Inicia listener de mensagens do cliente 
+	game.StartGameListener(nc, clientID)
 
 	for {
 		option := utils.ShowMenuPrincipal()
@@ -146,63 +142,70 @@ func startGameLoop(nc *nats.Conn, server models.ServerInfo, clientID string, use
 
 			clientTopic := fmt.Sprintf("client.%s.inbox", clientID)
 			success := game.JoinQueue(nc, server, &user, clientTopic)
-			if success {
-				fmt.Println("Entrando na fila de espera...")
-
-				matchChan := make(chan bool, 1)
-				doneChan := make(chan struct{}, 1)
-
-				// Inicia a tela de espera
-				go utils.ShowWaitingScreen(user, matchChan, doneChan)
-
-				// Inicia a goroutine que escuta notificações NATS do servidor
-				go listenForMatch(nc, clientTopic, matchChan, doneChan)
-
-				// Espera o sinal de match
-				select {
-				case <-matchChan:
-					style.Clear()
-					//aqui lista as cartas do deck pro usuario jogar e recebe o input
-					game.ChooseCard(user)
-					
-				}
+			if !success {
+				fmt.Println("Não foi possível entrar na fila.")
+				continue
 			}
 
-		case "2": //Ver ou alterar o deck --> não tá implementado cada opção
+			fmt.Println("Esperando por um adversário...")
+
+			//Espera MATCH
+			matchChan := make(chan shared.User, 1)
+			doneChan := make(chan struct{}, 1)
+			go waitForMatch(nc, clientTopic, matchChan, doneChan)
+
+			opponent, ok := <-matchChan
+			if !ok {
+				fmt.Println("Falha ao iniciar a partida.")
+				continue
+			}
+			
+			fmt.Printf("\nPartida iniciada! Oponente: %s\n", opponent.UserId)
+			opponentID := opponent.UserId
+
+			//Loop de turnos
+			for {
+				card, ok := game.ChooseCard(user)
+				if !ok {
+					fmt.Println("Saindo da partida...")
+					break
+				}
+
+				game.SendCardPlay(nc, server.ID, user.UserId, opponentID, card)
+
+				//alternar turnos --> implementar ainda
+			}
+
+		case "2": //Deck
 			optionGame := utils.ShowMenuDeck()
 			switch optionGame {
-					//sujeito a mudanças
-					case "1": //Visualizar todas as cartas 
-						fmt.Println("Eita opção 1")
-					case "2": //Visualizar cartas do deck
-						fmt.Println("Eita opção 2")
-					case "3": //Alterar o deck
-						fmt.Println("Eita opção 3")
-					case "4": //Voltar ao menu principal
-						fmt.Println("Eita opção 4")
-						return
-					default:
-						fmt.Println("Digitou errado parceiro")
-					}
-		case "3":
-			fmt.Println("Abrir pacote não implementado")
-		case "4":
-			fmt.Println("Troca de cartas não implementada")
-		case "5":
+			case "1":
+				fmt.Println("Visualizando todas as cartas do usuário...")
+			case "2":
+				fmt.Println("Visualizando cartas do deck...")
+			case "3":
+				fmt.Println("Alterar deck selecionado...")
+			case "4":
+				continue
+			default:
+				fmt.Println("Opção inválida.")
+			}
+
+		case "5": //Regras
 			utils.ShowRules()
-		case "6":
-			fmt.Println("Ping não implementado")
-		case "7":
+
+		case "7": //Logout
 			fmt.Println("Deslogando...")
 			logout(nc, server, clientID)
 			return
 
 		default:
-			fmt.Println("Opção ainda não implementada.")
+			fmt.Println("Opção inválida.")
 		}
 	}
 }
 
+//Logout
 func logout(nc *nats.Conn, server models.ServerInfo, clientID string) {
 	req := shared.Request{
 		ClientID: clientID,
@@ -213,11 +216,7 @@ func logout(nc *nats.Conn, server models.ServerInfo, clientID string) {
 	topic := fmt.Sprintf("server.%d.requests", server.ID)
 	msg, err := nc.Request(topic, reqData, 5*time.Second)
 	if err != nil {
-		if err == nats.ErrTimeout {
-			log.Println("Erro: o servidor não respondeu ao logout a tempo.")
-		} else {
-			log.Printf("Erro ao enviar requisição de logout: %v", err)
-		}
+		log.Println("Erro ao enviar requisição de logout:", err)
 		return
 	}
 
@@ -234,6 +233,7 @@ func logout(nc *nats.Conn, server models.ServerInfo, clientID string) {
 	}
 }
 
+//Heartbeat
 func startHeartbeat(nc *nats.Conn, clientID, serverTopic string) {
 	go func() {
 		for {
@@ -248,7 +248,8 @@ func startHeartbeat(nc *nats.Conn, clientID, serverTopic string) {
 	}()
 }
 
-func listenForMatch(nc *nats.Conn, clientTopic string, matchChan chan<- bool, doneChan chan struct{}) {
+
+func waitForMatch(nc *nats.Conn, clientTopic string, matchChan chan<- shared.User, doneChan chan struct{}) {
 	sub, err := nc.SubscribeSync(clientTopic)
 	if err != nil {
 		log.Printf("Erro ao subscrever no tópico do cliente: %v", err)
@@ -268,22 +269,23 @@ func listenForMatch(nc *nats.Conn, clientTopic string, matchChan chan<- bool, do
 
 		var resp shared.Response
 		if err := json.Unmarshal(msg.Data, &resp); err != nil {
-			log.Printf("Erro ao decodificar mensagem do servidor: %v", err)
+			log.Println("Erro ao decodificar mensagem do servidor:", err)
 			continue
 		}
 
 		if resp.Action == "MATCH" {
-			select {
-			case matchChan <- true:
-				select {
-				case <-doneChan: 
-				default:
-					close(doneChan)
-				}
-				return
-			default:
-				return
+			var opponent shared.User
+			if err := json.Unmarshal(resp.Data, &opponent); err != nil {
+				log.Println("Erro ao decodificar dados do adversário:", err)
+				continue
 			}
+
+			select {
+			case matchChan <- opponent:
+			default:
+			}
+			close(doneChan)
+			return
 		}
 	}
 }

@@ -48,6 +48,7 @@ func StartNats(server *models.Server) (*nats.Conn, error) {
 		case "JOIN_QUEUE":
 			handlers.HandleJoinQueue(server, req, nc, msg)
 		case "GAME_MESSAGE":
+			log.Println("Entrou no message")
     		handlers.HandleGameMessage(server, req, nc, msg)
 		}
 
