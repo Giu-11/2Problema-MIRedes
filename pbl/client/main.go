@@ -144,75 +144,40 @@ func startGameLoop(nc *nats.Conn, server models.ServerInfo, clientID string, use
 		switch option {
 		case "1": //Entrar na fila
 			fmt.Println("Entrando na fila para uma nova partida...")
+
 			clientTopic := fmt.Sprintf("client.%s.inbox", clientID)
 			success := game.JoinQueue(nc, server, &user, clientTopic)
 			if success {
 				fmt.Println("Entrando na fila de espera...")
+
 				matchChan := make(chan bool, 1)
-				doneChan := make(chan struct{})
+				doneChan := make(chan struct{}, 1)
 
-
-				//inicia a tela de espera
+				// Inicia a tela de espera
 				go utils.ShowWaitingScreen(user, matchChan, doneChan)
 
-				//inicia a goroutine que escuta notificações NATS do servidor
-				go func() {
-					sub, err := nc.SubscribeSync(clientTopic)
-					if err != nil {
-						log.Printf("Erro ao subscrever no tópico do cliente: %v", err)
-						select {
-						case matchChan <- false:
-						default:
-						}
-						return
+				// Inicia a goroutine que escuta notificações NATS do servidor
+				go listenForMatch(nc, clientTopic, matchChan, doneChan)
+
+				// Espera o sinal de match
+				select {
+				case <-matchChan:
+					style.Clear()
+					optionGame := utils.ShowMenuDeck()
+
+					switch optionGame {
+					case "1":
+						fmt.Println("Eita opção 1")
+					case "2":
+						fmt.Println("Eita opção 2")
+					case "3":
+						fmt.Println("Eita opção 3")
+					case "4":
+						fmt.Println("Eita opção 4")
+					default:
+						fmt.Println("Digitou errado parceiro")
 					}
-					defer func() {
-						_ = sub.Unsubscribe()
-					}()
-
-					for {
-						msg, err := sub.NextMsg(1 * time.Second)
-						if err != nil {
-							if err == nats.ErrTimeout {
-								continue
-							}
-							log.Printf("Erro ao receber mensagem NATS: %v", err)
-							return
-						}
-
-						var resp shared.Response
-						if err := json.Unmarshal(msg.Data, &resp); err != nil {
-							log.Printf("Erro ao decodificar mensagem do servidor: %v", err)
-							continue
-						}
-
-						if resp.Action == "MATCH" {
-							select {
-							case matchChan <- true:
-								close(doneChan)
-								style.Clear()
-								optionGame := utils.ShowMenuDeck() 
-								switch optionGame{
-								case "1":
-									fmt.Println("Eita opção 1")
-								case "2":
-									fmt.Println("Eita opção 2")
-								case "3":
-									fmt.Println("Eita opção 3")
-								case "4":
-									fmt.Println("Eita opção 4")
-								default:
-									fmt.Println("Digitou errado parceiro")
-									return
-								}
-								return
-							default:
-							}
-							return
-						}
-
-					}
-				}()
+				}
 			}
 
 		case "2":
@@ -282,4 +247,44 @@ func startHeartbeat(nc *nats.Conn, clientID, serverTopic string) {
 			time.Sleep(5 * time.Second)
 		}
 	}()
+}
+
+func listenForMatch(nc *nats.Conn, clientTopic string, matchChan chan<- bool, doneChan chan struct{}) {
+	sub, err := nc.SubscribeSync(clientTopic)
+	if err != nil {
+		log.Printf("Erro ao subscrever no tópico do cliente: %v", err)
+		return
+	}
+	defer sub.Unsubscribe()
+
+	for {
+		msg, err := sub.NextMsg(1 * time.Second)
+		if err != nil {
+			if err == nats.ErrTimeout {
+				continue
+			}
+			log.Printf("Erro ao receber mensagem NATS: %v", err)
+			return
+		}
+
+		var resp shared.Response
+		if err := json.Unmarshal(msg.Data, &resp); err != nil {
+			log.Printf("Erro ao decodificar mensagem do servidor: %v", err)
+			continue
+		}
+
+		if resp.Action == "MATCH" {
+			select {
+			case matchChan <- true:
+				select {
+				case <-doneChan: 
+				default:
+					close(doneChan)
+				}
+				return
+			default:
+				return
+			}
+		}
+	}
 }

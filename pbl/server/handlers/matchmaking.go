@@ -55,7 +55,7 @@ func MonitorLocalQueue(server *models.Server, nc *nats.Conn) {
 	ticker := time.NewTicker(1 * time.Second)
 
 	for range ticker.C {
-		log.Printf("[Matchmaking] Verificando fila local...")
+		//log.Printf("[Matchmaking] Verificando fila local...")
 		now := time.Now()
 
 		server.Matchmaking.Mutex.Lock()
