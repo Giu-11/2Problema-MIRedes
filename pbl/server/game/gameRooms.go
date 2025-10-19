@@ -41,7 +41,6 @@ func CreateRoom(player1, player2 *shared.User) *models.Room{
 	return room
 }
 
-
 func generateRoomID() string {
 	var b [4]byte
 	_, err := rand.Read(b[:])

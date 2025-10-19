@@ -111,7 +111,7 @@ func sendToGlobalQueue(entry shared.QueueEntry, server *models.Server, nc *nats.
 		}
 	} else {
 		handleJoinGlobalQueueLeader(entry, server)
-		log.Printf("[Líder] Cliente %s adicionado à fila global diretamente", entry.Player.UserName)
+		log.Printf("[Líder] - Cliente %s adicionado à fila global diretamente", entry.Player.UserName)
 	}
 }
 

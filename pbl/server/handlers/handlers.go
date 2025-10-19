@@ -188,7 +188,6 @@ func HandleLogout(server *models.Server, request shared.Request, nc *nats.Conn, 
     nc.Publish(msg.Reply, data)
 }
 
-
 // Heatbeat para o clinete
 func StartHeartbeatMonitor(server *models.Server, nc *nats.Conn) {
 	go func() {

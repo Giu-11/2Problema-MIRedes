@@ -49,7 +49,7 @@ func main() {
 	clientID := fmt.Sprintf("cliente%d", utils.GerarIdAleatorio())
 	log.Printf("Seu ID de cliente para esta sessão é: %s\n", clientID)
 
-	// Captura Ctrl+C para logout
+	//Captura Ctrl+C para logout
 	sigs := make(chan os.Signal, 1)
 	signal.Notify(sigs, syscall.SIGINT, syscall.SIGTERM)
 	go func() {
@@ -58,11 +58,10 @@ func main() {
 		os.Exit(0)
 	}()
 
-	// Inicia o menu inicial (login)
+	//Inicia o menu inicial (login)
 	handleMainMenu(nc, chosenServer, clientID)
 }
 
-// handleMainMenu: menu inicial (antes do login)
 func handleMainMenu(nc *nats.Conn, server models.ServerInfo, clientID string) {
 	for {
 		option := utils.MenuInicial()
@@ -75,7 +74,7 @@ func handleMainMenu(nc *nats.Conn, server models.ServerInfo, clientID string) {
 				startGameLoop(nc, server, clientID, user)
 			}
 
-		case "2": // Sair
+		case "2": //Sair
 			fmt.Println("Até mais!")
 			return
 
@@ -85,7 +84,7 @@ func handleMainMenu(nc *nats.Conn, server models.ServerInfo, clientID string) {
 	}
 }
 
-// sendLoginRequest: envia credenciais e retorna User completo
+//sendLoginRequest: envia credenciais e retorna User completo
 func sendLoginRequest(nc *nats.Conn, server models.ServerInfo, clientID string) (shared.User, bool) {
 	credentials := utils.Login()
 	jsonData, err := json.Marshal(credentials)
@@ -133,9 +132,9 @@ func sendLoginRequest(nc *nats.Conn, server models.ServerInfo, clientID string) 
 	return shared.User{}, false
 }
 
-// startGameLoop: menu principal após login
+//startGameLoop: menu principal após login
 func startGameLoop(nc *nats.Conn, server models.ServerInfo, clientID string, user shared.User) {
-	// Inicia heartbeat para este cliente
+	//Inicia heartbeat para este cliente
 	serverTopic := fmt.Sprintf("server.%d.requests", server.ID)
 	startHeartbeat(nc, clientID, serverTopic)
 
@@ -164,16 +163,17 @@ func startGameLoop(nc *nats.Conn, server models.ServerInfo, clientID string, use
 				case <-matchChan:
 					style.Clear()
 					optionGame := utils.ShowMenuDeck()
-
 					switch optionGame {
-					case "1":
+					//sujeito a mudanças
+					case "1": //Visualizar todas as cartas 
 						fmt.Println("Eita opção 1")
-					case "2":
+					case "2": //Visualizar cartas do deck
 						fmt.Println("Eita opção 2")
-					case "3":
+					case "3": //Alterar o deck
 						fmt.Println("Eita opção 3")
-					case "4":
+					case "4": //Voltar ao menu principal
 						fmt.Println("Eita opção 4")
+						return
 					default:
 						fmt.Println("Digitou errado parceiro")
 					}
@@ -201,7 +201,6 @@ func startGameLoop(nc *nats.Conn, server models.ServerInfo, clientID string, use
 	}
 }
 
-// logout envia mensagem de LOGOUT
 func logout(nc *nats.Conn, server models.ServerInfo, clientID string) {
 	req := shared.Request{
 		ClientID: clientID,
@@ -233,8 +232,6 @@ func logout(nc *nats.Conn, server models.ServerInfo, clientID string) {
 	}
 }
 
-
-// startHeartbeat envia HEARTBEAT periódico
 func startHeartbeat(nc *nats.Conn, clientID, serverTopic string) {
 	go func() {
 		for {
