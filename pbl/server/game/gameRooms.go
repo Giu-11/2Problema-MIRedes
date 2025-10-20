@@ -1,7 +1,6 @@
 package game
 
 import (
-	"pbl/server/models"
 	"pbl/shared"
 	"sync"
 	"crypto/rand"
@@ -12,26 +11,26 @@ import (
 )
 
 var (
-	GameRooms   = make(map[string]*models.Room)
+	GameRooms   = make(map[string]*shared.GameRoom)
 	GameRoomsMu sync.RWMutex
 )
 
-func CreateRoom(player1, player2 *shared.User) *models.Room{
+func CreateRoom(player1, player2 *shared.User) *shared.GameRoom{
 	roomID := generateRoomID()
-	var turn shared.User
+	var turn *shared.User
 	n, _ := rand.Int(rand.Reader, big.NewInt(2)) //sorteia a vez
 	if n.Int64() == 0 {
-		turn = *player1
+		turn = player1
 	} else {
-		turn = *player2
+		turn = player2
 	}
 
-	room := &models.Room{
+	room := &shared.GameRoom{
 		ID:        roomID,
 		Player1:   player1,
 		Player2:   player2,
 		Turn:      turn,
-		Status:    models.InProgress,
+		Status:    shared.InProgress,
 	}
 
 	GameRoomsMu.Lock()

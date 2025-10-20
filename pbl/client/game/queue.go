@@ -14,12 +14,14 @@ import (
 
 func JoinQueue(nc *nats.Conn, server models.ServerInfo, user *shared.User, clientTopic string) bool {
 	entry := shared.QueueEntry{
-		Player:   user,
+		Player:   *user,
 		ServerID: fmt.Sprintf("%d", server.ID),
 		Topic:    clientTopic,
 		JoinTime: time.Now(),
 	}
 	entry.Player.Status = "available"
+
+	//fmt.Println("Dados enviados brutos: ", entry)
 
 	payload, err := json.Marshal(entry)
 	if err != nil {
@@ -39,6 +41,7 @@ func JoinQueue(nc *nats.Conn, server models.ServerInfo, user *shared.User, clien
 	}
 
 	topic := fmt.Sprintf("server.%d.requests", server.ID)
+	
 	msg, err := nc.Request(topic, reqData, 5*time.Second)
 	if err != nil {
 		if err == nats.ErrTimeout {
@@ -56,7 +59,7 @@ func JoinQueue(nc *nats.Conn, server models.ServerInfo, user *shared.User, clien
 	}
 
 	if resp.Status == "success" {
-		fmt.Println("Entrou na fila com sucesso. Aguardando pareamento...")
+		fmt.Println("Entrou na fila com sucesso.\n Aguardando pareamento...")
 		user.Status = "in_queue"
 		return true
 	}

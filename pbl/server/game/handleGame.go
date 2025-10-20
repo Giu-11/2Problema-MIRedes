@@ -8,7 +8,6 @@ import (
 	"pbl/shared"
 )
 func HandleIncomingGameMessage(msgData []byte) {
-    // DEBUG: Print da mensagem bruta
     log.Printf("Mensagem bruta recebida: %s", string(msgData))
     
     var msg shared.GameMessage
@@ -35,7 +34,7 @@ func HandleIncomingGameMessage(msgData []byte) {
             log.Println("Erro ao decodificar dados do adversário:", err)
             return
         }
-        fmt.Printf("\nPartida iniciada! Oponente: %s\n", opponent.UserId)
+        fmt.Printf("\nPartida iniciada! Oponente: %s\n", opponent.UserName)
     default:
         log.Printf("Mensagem desconhecida recebida - Type: '%s'", msg.Type)
     }

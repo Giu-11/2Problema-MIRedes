@@ -149,7 +149,7 @@ func MatchLocalQueue(server *models.Server) {
 		player2.Status = "playing"
 
 		//cria sala
-		room := game.CreateRoom(player1, player2)
+		room := game.CreateRoom(&player1, &player2)
 		log.Printf("\n[Server %d] - Nova partida criada: %s (%s vs %s)",
 			server.ID, room.ID, player1.UserName, player2.UserName)
 
@@ -161,7 +161,7 @@ func MatchLocalQueue(server *models.Server) {
 	}
 }
 
-func sendMatchNotification(server *models.Server, room *models.Room) {
+func sendMatchNotification(server *models.Server, room *shared.GameRoom) {
 	data, err := json.Marshal(room)
 	if err != nil {
 		log.Printf("Erro ao serializar room: %v", err)

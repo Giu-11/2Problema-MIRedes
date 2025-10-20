@@ -41,8 +41,28 @@ type Response struct {
 	Server int             `json:"server"`
 }
 type QueueEntry struct {
-	Player *User    `json:"user"`
+	Player User    `json:"user"`
 	ServerID string    `json:"server_id"`
 	Topic    string    `json:"topic"`
 	JoinTime time.Time `json:"join_time"`
+}
+
+//Estado da partida
+type GameStatus string
+
+const (
+	WaitingPlayers GameStatus = "WAITING"
+	InProgress     GameStatus = "IN_PROGRESS"
+	Finished       GameStatus = "FINISHED"
+)
+
+type GameRoom struct {
+	ID        string         `json:"id"`
+	Player1   *User    `json:"player1"`
+	Player2   *User    `json:"player2"`
+	Player1ClientID string
+    Player2ClientID string
+	Turn      *User    `json:"turn"`
+	Status    GameStatus     `json:"status"`
+	Winner    *User   `json:"winner,omitempty"`
 }

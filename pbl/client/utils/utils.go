@@ -8,10 +8,9 @@ import (
 	"math"
 	"os"
 	"strings"
-	"time"
+	//"time"
 
-	"pbl/shared"
-	"pbl/style"
+	//"pbl/shared"
 )
 
 func ReadLineSafe() string {
@@ -35,22 +34,24 @@ func GerarIdAleatorio() int {
 	return int(math.Abs(float64(id)))
 }
 
-func ShowWaitingScreen(user shared.User, matchChan <-chan bool, doneChan <-chan struct{}) {
-    style.Clear()
-	fmt.Printf("Olá %s! Entrou na fila. Aguardando pareamento...\n", user.UserName)
-    
-    spinner := []string{"⣾", "⣽", "⣻", "⢿", "⡿", "⣟", "⣯", "⣷"}
-	i := 0
+/*
+func ShowWaitingScreen(user shared.User, matchChan <-chan shared.User) shared.User {
+	fmt.Printf("\nOlá %s! Entrou na fila. Aguardando pareamento...\n", user.UserName)
 
-    for {
-        select {
-        case <-doneChan:
-            //fmt.Println("\nParabéns! Match encontrado! Preparando partida...")
-            return
-        default:
-            fmt.Printf("\r%s Aguardando pareamento...", spinner[i%len(spinner)])
-            i++
-            time.Sleep(300 * time.Millisecond)
-        }
-    }
+	spinner := []string{"⣾", "⣽", "⣻", "⢿", "⡿", "⣟", "⣯", "⣷"}
+	i := 0
+	ticker := time.NewTicker(300 * time.Millisecond)
+	defer ticker.Stop()
+
+	for {
+		select {
+		case opponent := <-matchChan:
+			fmt.Printf("\nMatch encontrado! Jogando contra: %s\n", opponent.UserName)
+			return opponent
+		case <-ticker.C:
+			fmt.Printf("\r%s Aguardando pareamento...", spinner[i%len(spinner)])
+			i++
+		}
+	}
 }
+*/
