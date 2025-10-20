@@ -108,12 +108,20 @@ func HandleLogin(server *models.Server, request shared.Request, nc *nats.Conn, m
         }
     }
 
-    //Monta deck inicial do usuário
+    //Insere cartas padrão 
     user.Cards = []shared.Card{
-        {Id: 1, Element: "Água", Type: "Normal"},
-        {Id: 2, Element: "Terra", Type: "Normal"},
-        {Id: 3, Element: "Fogo", Type: "Normal"},
-        {Id: 4, Element: "Ar", Type: "Normal"},
+        {Id: 1, Element: "AGUA", Type: "NORMAL"},
+        {Id: 2, Element: "TERRA", Type: "NORMAL"},
+        {Id: 3, Element: "FOGO", Type: "NORMAL"},
+        {Id: 4, Element: "AR", Type: "NORMAL"},
+        {Id: 5, Element: "MATO", Type: "NORMAL"},
+    }
+
+    user.Deck = []shared.Card{
+        {Id: 1, Element: "AGUA", Type: "NORMAL"},
+        {Id: 2, Element: "TERRA", Type: "NORMAL"},
+        {Id: 3, Element: "FOGO", Type: "NORMAL"},
+        {Id: 4, Element: "AR", Type: "NORMAL"},
     }
 
     //Armazena o usuário logado
