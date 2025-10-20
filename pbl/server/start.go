@@ -11,12 +11,14 @@ import (
 	"pbl/server/handlers"
 	"pbl/server/models"
 	"pbl/server/pubSub"
+	"pbl/style"
 
 	"github.com/hashicorp/raft"
 	raftboltdb "github.com/hashicorp/raft-boltdb"
 )
 
 func StartServer(idString, port, peersEnv, natsURL string) error {
+	style.Clear()
 	id, _ := strconv.Atoi(idString)
 	if port == "" {
 		port = "8001"

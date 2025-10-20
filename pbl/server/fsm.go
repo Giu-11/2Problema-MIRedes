@@ -53,7 +53,9 @@ func (fsm *FSM) Apply(logEntry *raft.Log) interface{} {
 
 		if len(fsm.cardStock) == 0 {
 			log.Println("[FSM] Tentativa de pegar carta do estoque, mas está vazio.")
-			return "STOCK_EMPTY"
+			fsm.cardStock = cards.GerarEstoque()
+			log.Println("NOVAS CARTAS ADICIONADAS NO ESTOQUE")
+			//return "STOCK_EMPTY"
 		}
 
 		drawnCard := fsm.cardStock[0]
