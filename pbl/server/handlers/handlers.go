@@ -72,59 +72,10 @@ func HandleChooseServer(server *models.Server, request shared.Request, nc *nats.
 		nc.Publish(message.Reply, data)
 	}
 }
-/*
-func HandleLogin(server *models.Server, request shared.Request, nc *nats.Conn, message *nats.Msg) {
-	//TODO: lidar com clientes já logados(não logar quem já logou)
-	var userCredentials shared.User
-	if err := json.Unmarshal(request.Payload, &userCredentials); err != nil {
-		log.Printf("[%d] - Erro no payload de login: %v", server.ID, err)
-		return
-	}
-
-	//Bloqueia o mapa de usuários para evitar problemas de concorrência
-	server.Mu.Lock()
-	defer server.Mu.Unlock()
-
-	// Verifica se o usuário já existe no mapa LOCAL deste servidor
-	existingUser, exists := server.Users[userCredentials.UserName]
-
-	var response shared.Response
-
-	if exists {
-		// Usuário existe, verifica a senha
-		if existingUser.Password == userCredentials.Password {
-			log.Printf("[%d] - Usuário '%s' logado com sucesso.", server.ID, userCredentials.UserName)
-			response = shared.Response{
-				Status: "success",
-				Action: "LOGIN_SUCCESS",
-				Server: server.ID,
-			}
-		} else {
-			log.Printf("[%d] - Tentativa de login falhou para '%s': senha incorreta.", server.ID, userCredentials.UserName)
-			response = shared.Response{
-				Status: "error",
-				Action: "LOGIN_FAIL",
-				Error:  "Senha incorreta.",
-				Server: server.ID,
-			}
-		}
-	} else {
-		log.Printf("[%d] - Usuário '%s' não encontrado. Criando novo usuário local.", server.ID, userCredentials.UserName)
-		server.Users[userCredentials.UserName] = userCredentials
-		response = shared.Response{
-			Status: "success",
-			Action: "LOGIN_SUCCESS",
-			Server: server.ID,
-		}
-	}
-
-	data, _ := json.Marshal(response)
-	nc.Publish(message.Reply, data)
-}
-*/
 
 func HandleLogin(server *models.Server, request shared.Request, nc *nats.Conn, msg *nats.Msg) {
     var user shared.User
+	
     if err := json.Unmarshal(request.Payload, &user); err != nil {
         log.Printf("[%d] - Erro ao desserializar login: %v", server.ID, err)
         resp := shared.Response{
@@ -138,6 +89,25 @@ func HandleLogin(server *models.Server, request shared.Request, nc *nats.Conn, m
         return
     }
 
+    server.Mu.Lock()
+    defer server.Mu.Unlock()
+
+    //Verifica se já existe um usuário com o mesmo nome online
+    for _, existingUser := range server.Users {
+        if existingUser.UserName == user.UserName {
+            log.Printf("[%d] - Tentativa de login duplicado para '%s'", server.ID, user.UserName)
+            resp := shared.Response{
+                Status: "error",
+                Action: "LOGIN_FAIL",
+                Error:  "Usuário já está logado em outro cliente.",
+                Server: server.ID,
+            }
+            data, _ := json.Marshal(resp)
+            nc.Publish(msg.Reply, data)
+            return
+        }
+    }
+
     //Monta deck inicial do usuário
     user.Cards = []shared.Card{
         {Id: 1, Element: "Água", Type: "Normal"},
@@ -146,23 +116,20 @@ func HandleLogin(server *models.Server, request shared.Request, nc *nats.Conn, m
         {Id: 4, Element: "Ar", Type: "Normal"},
     }
 
-    //Bloqueia o mapa de usuários para evitar condições de corrida
-    server.Mu.Lock()
+    //Armazena o usuário logado
     server.Users[request.ClientID] = user
-    server.Mu.Unlock()
-
     log.Printf("[%d] - Usuário '%s' conectado com ClientID '%s'", server.ID, user.UserName, request.ClientID)
 
-    //Retorna os dados completos do usuário para o cliente
     resp := shared.Response{
         Status: "success",
         Action: "LOGIN_SUCCESS",
-        Data:   mustMarshal(user), 
+        Data:   mustMarshal(user),
         Server: server.ID,
     }
     data, _ := json.Marshal(resp)
     nc.Publish(msg.Reply, data)
 }
+
 
 //Helper para converter qualquer struct em json.RawMessage
 func mustMarshal(v interface{}) json.RawMessage {

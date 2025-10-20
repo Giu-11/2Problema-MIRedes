@@ -1,13 +1,13 @@
 package utils
 
 import (
+	"bytes"
+	"encoding/json"
 	"fmt"
 	"net"
-	"bytes"
-	"time"
-    "encoding/json"
-    "net/http"
+	"net/http"
 	"pbl/server/models"
+	"time"
 )
 
 //Descobrir o IP do pc que tá rodando o servidor
