@@ -151,7 +151,8 @@ func startGameLoop(nc *nats.Conn, server models.ServerInfo, clientID string, use
 
 		case "2":
 			style.Clear()
-			fmt.Println("Ver deck não implementado..")
+			handleClientSeeDeck(nc, server, clientID)
+			//fmt.Println("Ver deck não implementado..")
 		case "3":
 			style.Clear()
 			handleClientDrawCard(nc, server, clientID)
@@ -233,7 +234,7 @@ func handleClientDrawCard(nc *nats.Conn, server models.ServerInfo, clienteID str
 
 	var response shared.Response
 	if err := json.Unmarshal(msg.Data, &response); err != nil {
-		log.Printf("Erro ao decodificar resposta da jogada: %v", err)
+		log.Printf("Erro ao decodificar resposta da carta: %v", err)
 		return
 	}
 
@@ -247,6 +248,47 @@ func handleClientDrawCard(nc *nats.Conn, server models.ServerInfo, clienteID str
 		fmt.Printf("   -> Carta: %s %s\n", drawnData.Card.Element, drawnData.Card.Type)
 	} else {
 		msg := fmt.Sprintf("\n[FALHA] Não foi possível pegar a carta: %s\n", response.Error)
+		style.PrintVerm(msg)
+	}
+}
+
+func handleClientSeeDeck(nc *nats.Conn, server models.ServerInfo, clientID string){
+	fmt.Println("Buscando cartas...")
+	req := shared.Request{
+		ClientID: clientID,
+		Action: "SEE_CARDS",
+		Payload: nil,
+	}
+	reqData,_ := json.Marshal(req)
+
+	topic := fmt.Sprintf("server.%d.requests", server.ID)
+	msg, err := nc.Request(topic, reqData, 5*time.Second)
+
+	if err != nil {
+		log.Printf("Erro na requisição para pegar carta: %v", err)
+		return // Sai da função imediatamente para evitar o crash
+	}
+
+	if msg == nil || msg.Data == nil{
+		log.Printf("O servidor retornou uma resposta vazia.")
+		return
+	}
+
+	var response shared.Response
+	if err := json.Unmarshal(msg.Data, &response); err != nil {
+		log.Printf("Erro ao decodificar resposta do inventário: %v", err)
+		return
+	}
+
+	if response.Status == "success"{
+		var inventario shared.Cards
+		if err := json.Unmarshal(response.Data, &inventario); err != nil {
+			log.Printf("Erro ao decodificar os dados do inventario: %v", err)
+			return
+		}
+		utils.MostrarInventario(inventario.Cards)
+	} else {
+		msg := fmt.Sprintf("\n[FALHA] Não foi possível ver inventário: %s\n", response.Error)
 		style.PrintVerm(msg)
 	}
 }

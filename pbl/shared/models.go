@@ -49,3 +49,7 @@ type CardDrawnData struct {
 	Card      Card   `json:"card"`
 	RequestID string `json:"requestID"`
 }
+
+type Cards struct{
+	Cards []Card `json:"cards"`
+}

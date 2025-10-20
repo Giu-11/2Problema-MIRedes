@@ -43,3 +43,7 @@ func PrintCian(texto string) {
 func PrintAma(texto string) {
 	fmt.Printf("\033[33m%s\033[0m", texto)
 }
+
+func PrintAz(texto string) {
+	fmt.Printf("\033[34m%s\033[0m", texto)
+}

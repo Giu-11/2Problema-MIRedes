@@ -323,7 +323,7 @@ func processDrawCardRequest(server *models.Server, clientID string) (shared.Card
 	return drawnCard, nil
 }
 
-// finaliza a transação, removendo a carta da área de pendentes.
+// finaliza a transação, removendo a carta da área de pendentes
 func claimCard(server *models.Server, requestID string) {
 	log.Printf("[%d] Reivindicando carta para o RequestID: %s", server.ID, requestID)
 
@@ -340,6 +340,22 @@ func claimCard(server *models.Server, requestID string) {
 	if err := future.Error(); err != nil {
 		log.Printf("[%d] ERRO CRÍTICO: Falha ao reivindicar a carta para o RequestID %s: %v", server.ID, requestID, err)
 	}
+}
+
+func SeeCardsHandler(server *models.Server, request shared.Request, nc *nats.Conn, message *nats.Msg){
+	server.Mu.Lock()
+	cards := shared.Cards {
+		Cards : server.Users[request.ClientID].Cards,
+	}
+	server.Mu.Unlock()
+	resp := shared.Response{
+		Status: "success",
+		Action: "SEE_CARDS",
+		Data: mustMarshal(cards),
+		Server: server.ID,
+	}
+	data, _ := json.Marshal(resp)
+	nc.Publish(message.Reply, data)
 }
 
 // Heatbeat para o clinete

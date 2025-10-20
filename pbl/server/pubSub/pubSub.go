@@ -49,6 +49,8 @@ func StartNats(server *models.Server) (*nats.Conn, error) {
 			handlers.HandleJoinQueue(server, req, nc, msg)
 		case "OPEN_PACK":
 			handlers.HandleDrawCard(server, req, nc, msg)
+		case "SEE_CARDS":
+			handlers.SeeCardsHandler(server, req, nc, msg)
 		}
 
 	})

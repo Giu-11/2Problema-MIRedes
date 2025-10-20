@@ -2,6 +2,8 @@ package utils
 
 import (
 	"fmt"
+	"pbl/shared"
+	"pbl/style"
 )
 
 //MENUS PARA BASE - sujeito a mudanças
@@ -51,4 +53,23 @@ func ShowRules() {
 	fmt.Println("")
 	//tem que escolher o jogo
 
+}
+
+func MostrarInventario(cartas []shared.Card){
+	fmt.Println("Suas cartas:")
+	for i,carta := range cartas{
+		msg := fmt.Sprintf("%d - %s %s\n", i, carta.Element, carta.Type)
+		switch carta.Element {
+		case "AR":
+			style.PrintCian(msg)
+		case "AGUA":
+			style.PrintAz(msg)
+		case "FOGO":
+			style.PrintVerm(msg)
+		case "TERRA":
+			style.PrintAma(msg)
+		case "MATO":
+			style.PrintVerd(msg)
+		}
+	}
 }

@@ -10,10 +10,11 @@ import (
 //var elements = []string{"AGUA", "TERRA", "FOGO", "AR", "MATO"}
 
 var typesElemnts = map[string][]string{
-	"AGUA": {"BENTA", "LIMPA", "GLACIAL", "DOCE", "FORTE", "SALGADA", "MOLHADA"},
-	"FOGO": {"SAGRADO", "HADES", "ETERNO", "DRAGÃO", "FORTE", "AZUL", "FRIO"},
-	"TERRA": {"DIAMENTE", "VULCÂNICA", "FERTIL", "VERMELHA", "FORTE", "BATIDA", "SOLTA"},
-	"AR": {"FEDENDO", "POLUIDO", "LIMPO", "TORNADO", "FORTE", "CHEIROSO", "CONDICIONADO"},
+	"AGUA": {"BENTA", "LIMPA", "GLACIAL", "DOCE", "FORTE", "SALGADA", "MOLHADA", "SABORIZADA"},
+	"FOGO": {"SAGRADO", "HADES", "ETERNO", "DRAGÃO", "FORTE", "AZUL", "FRIO", "QUENTINHO"},
+	"TERRA": {"DIAMENTE", "VULCÂNICA", "FERTIL", "VERMELHA", "FORTE", "BATIDA", "SOLTA", "AREIA"},
+	"AR": {"FEDENDO", "POLUIDO", "LIMPO", "TORNADO", "FORTE", "CHEIROSO", "CONDICIONADO", "COMPRIMIDO"},
+	"MATO": {"PRAGA", "SECO", "VENENOSO", "FLORIDO", "BAIXO", "ALTO", "FRACO", "TADINHO"},
 }
 
 func GerarEstoque() []shared.Card {
@@ -38,6 +39,6 @@ func GerarEstoque() []shared.Card {
 	rand.Shuffle(len(estoque), func(i, j int) {
 		estoque[i], estoque[j] = estoque[j], estoque[i]
 	})
-	
+
 	return estoque
 }
