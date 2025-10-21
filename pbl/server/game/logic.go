@@ -1,14 +1,15 @@
 package game
 
-import "strings"
+import (
+	"pbl/shared"
+)
 
-//peguei do problema anterior --> tem que adaptar
-func CheckWinner(card1, card2 string) string{
+func CheckWinner(card1, card2 shared.Card) string{
 	//O retorno é o resultado do player 1, depois é apenas comparado: se player 1 perdeu, o player 2 ganhou. Caso o contrário, o player 2 perdeu. E em caso de empate, vai ser empate para os dois. 
 
-	switch card1{
+	switch card1.Element{
 	case "FOGO":
-		switch card2 {
+		switch card2.Element{
 		case "AR", "FOGO":
 			return "EMPATE"
 		case "TERRA":
@@ -17,7 +18,7 @@ func CheckWinner(card1, card2 string) string{
 			return "PERDEU"
 		}
 	case "AGUA":
-		switch card2 {
+		switch card2.Element {
 		case "TERRA", "AGUA":
 			return "EMPATE"
 		case "FOGO":
@@ -26,7 +27,7 @@ func CheckWinner(card1, card2 string) string{
 			return "PERDEU"
 		}
 	case "TERRA":
-		switch card2 {
+		switch card2.Element {
 		case "AGUA", "TERRA":
 			return "EMPATE"
 		case "AR":
@@ -35,7 +36,7 @@ func CheckWinner(card1, card2 string) string{
 			return "PERDEU"
 		}
 	case "AR":
-		switch card2 {
+		switch card2.Element {
 		case "FOGO", "AR":
 			return "EMPATE"
 		case "AGUA":
@@ -45,7 +46,7 @@ func CheckWinner(card1, card2 string) string{
 		}
 	case "MATO": //carta do mal. Só empata ou perde✨ //Essa carta vai estar nos pacotes.
 	//Percebi agora que é só o usuário não colocar essa carta no deck...
-		switch card2 {
+		switch card2.Element {
 		case "MATO":
 			return "EMPATE"
 		case "TERRA", "AGUA", "FOGO", "AR":
@@ -55,11 +56,3 @@ func CheckWinner(card1, card2 string) string{
 	return ""
 }
 
-//Para não ter diferença entre cartas normais e especiais(elas são meramente ilustrativas)
-func baseCard(card string) string {
-    parts := strings.Fields(card) 
-    if len(parts) > 0 {
-        return parts[0]
-    }
-    return card
-}

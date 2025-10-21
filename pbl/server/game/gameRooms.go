@@ -20,7 +20,7 @@ var (
 	GameRoomsMu sync.RWMutex
 )
 
-func CreateRoom(player1, player2 *shared.User, nc *nats.Conn) *shared.GameRoom {
+func CreateRoom(player1, player2 *shared.User, nc *nats.Conn, serverID int) *shared.GameRoom {
     roomID := generateRoomID()
     var turn string
     n, _ := rand.Int(rand.Reader, big.NewInt(2)) //sorteio da vez
@@ -36,6 +36,7 @@ func CreateRoom(player1, player2 *shared.User, nc *nats.Conn) *shared.GameRoom {
         Player2: player2,
         Turn:    turn,
         Status:  shared.InProgress,
+        ServerID: serverID,
     }
 
     GameRoomsMu.Lock()
@@ -60,13 +61,6 @@ func generateRoomID() string {
 //Notificar a vez 
 func SendTurnNotification(nc *nats.Conn, room *shared.GameRoom) {
     for _, player := range []*shared.User{room.Player1, room.Player2} {
-        //var turn string
-        /*if player.UserId == room.Turn {
-            turn = "YOUR_TURN"
-        } else {
-            turn = "WAIT_TURN"
-        }*/
-
         msg := shared.GameMessage{
             Type: "PLAY_CARD",
             Turn: room.Turn,
@@ -77,3 +71,4 @@ func SendTurnNotification(nc *nats.Conn, room *shared.GameRoom) {
         nc.Publish(topic, data)
     }
 }
+

@@ -9,6 +9,7 @@ import (
 	"strconv"
 	"sync"
 	"time"
+    "fmt"
 
 	//sharedRaft "pbl/server/shared"
 	"pbl/shared"
@@ -232,7 +233,68 @@ func HandleHeartbeat(serverID int, request shared.Request, nc *nats.Conn, msg *n
 }
 
 func HandleGameMessage(server *models.Server, request shared.Request, nc *nats.Conn, msg *nats.Msg) {
-    game.HandleIncomingGameMessage(request.Payload)
+    var gameMsg shared.GameMessage
+    if err := json.Unmarshal(request.Payload, &gameMsg); err != nil {
+        log.Println("Erro ao decodificar GameMessage:", err)
+        return
+    }
+
+    //Pega a sala do jogador
+    roomID := gameMsg.RoomID
+    game.GameRoomsMu.Lock()
+    room, exists := game.GameRooms[roomID]
+    game.GameRoomsMu.Unlock()
+    if !exists {
+        log.Println("Sala não encontrada:", roomID)
+        return
+    }
+
+    //Inicializa mapa de cartas
+    if room.PlayersCards == nil {
+        room.PlayersCards = make(map[string]shared.Card)
+    }
+
+    //Decodifica a carta jogada
+    var card shared.Card
+    if err := json.Unmarshal(gameMsg.Data, &card); err != nil {
+        log.Println("Erro ao decodificar carta:", err)
+        return
+    }
+    room.PlayersCards[gameMsg.From] = card
+
+    //Determina quem será o próximo
+    var nextTurn string
+    if gameMsg.From == room.Player1.UserId {
+        nextTurn = room.Player2.UserId
+    } else {
+        nextTurn = room.Player1.UserId
+    }
+    room.Turn = nextTurn
+
+    //Envia mensagem para ambos os jogadores
+    turnMsg := shared.GameMessage{
+        Type: "PLAY_CARD",
+        From: gameMsg.From,  
+        Data: gameMsg.Data,  
+        Turn: nextTurn,      
+    }
+    dataTurn, _ := json.Marshal(turnMsg)
+
+    for _, player := range []*shared.User{room.Player1, room.Player2} {
+        nc.Publish(fmt.Sprintf("client.%s.inbox", player.UserId), dataTurn)
+    }
+
+    //Se ambos jogaram, calcula resultado
+    if len(room.PlayersCards) == 2 {
+        cardP1 := room.PlayersCards[room.Player1.UserId]
+        cardP2 := room.PlayersCards[room.Player2.UserId]
+
+        resultP1 := game.CheckWinner(cardP1, cardP2)
+        game.NotifyResult(nc, room, resultP1)
+
+        // Limpa cartas para a próxima rodada
+        room.PlayersCards = make(map[string]shared.Card)
+    }
 }
 
 

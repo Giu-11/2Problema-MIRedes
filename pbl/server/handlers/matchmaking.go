@@ -133,7 +133,7 @@ func handleJoinGlobalQueueLeader(entry shared.QueueEntry, server *models.Server)
 	server.Raft.Apply(data, 5*time.Second) //replica o estado
 }
 
-func MatchLocalQueue(server *models.Server, nc *nats.Conn ) {
+func MatchLocalQueue(server *models.Server, nc *nats.Conn) {
 	server.Matchmaking.Mutex.Lock()
 	defer server.Matchmaking.Mutex.Unlock()
 
@@ -149,7 +149,7 @@ func MatchLocalQueue(server *models.Server, nc *nats.Conn ) {
 		player2.Status = "playing"
 
 		//cria sala
-		room := game.CreateRoom(&player1, &player2, nc)
+		room := game.CreateRoom(&player1, &player2, nc, server.ID)
 		log.Printf("\n[Server %d] - Nova partida criada: %s (%s vs %s)",
 			server.ID, room.ID, player1.UserName, player2.UserName)
 
@@ -176,52 +176,18 @@ func sendMatchNotification(server *models.Server, room *shared.GameRoom) {
 	}
 
 	msgData, _ := json.Marshal(resp)
-
 	nc := server.Matchmaking.Nc
 
+	// Notifica ambos os jogadores sobre o match
 	topic1 := fmt.Sprintf("client.%s.inbox", room.Player1.UserId)
 	topic2 := fmt.Sprintf("client.%s.inbox", room.Player2.UserId)
 
 	nc.Publish(topic1, msgData)
 	nc.Publish(topic2, msgData)
 
-
-	//Envia quem começa
-	startMsg := shared.GameMessage{
-		Turn:     "YOUR_TURN",
-		Type: "PLAY_CARD",
-		From:     "server",
-		ServerID: server.ID,
-	}
-
-	msgBytes, _ := json.Marshal(startMsg)
-
-	//Manda só para o jogador que tem a vez
-	topicTurn := fmt.Sprintf("client.%s.inbox", room.Turn)
-	nc.Publish(topicTurn, msgBytes)
-
-	// E para o outro jogador, uma mensagem de espera
-	waitMsg := shared.GameMessage{
-		Type: "PLAY_CARD",
-		Turn: room.Turn,
-		From: "server",
-		ServerID: server.ID,
-	}
-	waitBytes, _ := json.Marshal(waitMsg)
-
-	var waitingPlayerID string
-	if room.Turn == room.Player1.UserId {
-		waitingPlayerID = room.Player2.UserId
-	} else {
-		waitingPlayerID = room.Player1.UserId
-	}
-	topicWait := fmt.Sprintf("client.%s.inbox", waitingPlayerID)
-	nc.Publish(topicWait, waitBytes)
-
-	log.Printf("[Server %d] - Turno inicial: %s", server.ID, room.Turn)
-
 	log.Printf("[Server %d] - Match enviado para %s e %s",
 		server.ID, room.Player1.UserName, room.Player2.UserName)
+	log.Printf("[Server %d] - Turno inicial: %s", server.ID, room.Turn)
 }
 
 // listar as filas

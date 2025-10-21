@@ -42,10 +42,12 @@ func ChooseCard(user shared.User) (shared.Card, bool) {
 	return selected, true
 }
 
+/*
+//enviado em broadcast 
 func SendCardPlay(nc *nats.Conn, room *shared.GameRoom, fromUserID string, card shared.Card) {
     dataBytes, _ := json.Marshal(card)
 
-    // Envia a carta para ambos, mas mantém o turno como o jogador atual
+    //Envia a carta para ambos, mas mantém o turno como o jogador atual
     for _, player := range []*shared.User{room.Player1, room.Player2} {
         msg := shared.GameMessage{
             Type: "PLAY_CARD",
@@ -58,8 +60,23 @@ func SendCardPlay(nc *nats.Conn, room *shared.GameRoom, fromUserID string, card 
         topic := fmt.Sprintf("client.%s.inbox", player.UserId)
         nc.Publish(topic, bytes)
     }
+}*/
 
+
+func SendCardPlay(nc *nats.Conn, room *shared.GameRoom, fromUserID string, card shared.Card) {
+    dataBytes, _ := json.Marshal(card)
+
+    msg := shared.GameMessage{
+        Type: "PLAY_CARD",
+        Data: dataBytes,
+        From: fromUserID,
+    }
+
+    bytes, _ := json.Marshal(msg)
+    topic := fmt.Sprintf("server.%d.requests", room.ServerID)
+    nc.Publish(topic, bytes)
 }
+
 
 func StartGameListener(nc *nats.Conn, clientID string, matchChan chan<- MatchInfo, currentUser shared.User) *nats.Subscription {
 	clientTopic := fmt.Sprintf("client.%s.inbox", clientID)
@@ -122,30 +139,28 @@ func ClientProcessGameMessage(msgData []byte, currentUser shared.User, nc *nats.
 	fmt.Println("Tipo da mensagem: ", msg.Type)
     switch msg.Type {
     case "PLAY_CARD":
-        var card shared.Card
-        if len(msg.Data) > 0 {
-            if err := json.Unmarshal(msg.Data, &card); err != nil {
-                log.Println("Erro ao decodificar carta:", err)
-                return
-            }
-        }
+		if len(msg.Data) > 0 {
+			var card shared.Card
+			if err := json.Unmarshal(msg.Data, &card); err != nil {
+				log.Println("Erro ao decodificar carta:", err)
+				return
+			}
+			if msg.From != currentUser.UserId {
+				fmt.Printf("\nO oponente jogou: %s (%s)\n", card.Element, card.Type)
+			}
+		}
 
-        //Mostra carta do oponente --> tem que apagar isso aqui depois
-        if msg.From != currentUser.UserId && len(msg.Data) > 0 {
-            fmt.Printf("\nO oponente jogou: %s (%s)\n", card.Element, card.Type)
-        }
-
-        //Verifica se é a vez do usuário
-        if msg.Turn == currentUser.UserId {
-            fmt.Println("\n🎮 Sua vez!")
-            chosenCard, ok := ChooseCard(currentUser)
-            if ok {
-                SendCardPlay(nc, room, currentUser.UserId, chosenCard)
-            }
-        } else {
-            fmt.Println("\n⏳ Aguardando oponente jogar...")
-        }
-
+		// Sempre verifica se é a vez do usuário
+		if msg.Turn == currentUser.UserId {
+			fmt.Println("\nSua vez!")
+			chosenCard, ok := ChooseCard(currentUser)
+			if ok {
+				SendCardPlay(nc, room, currentUser.UserId, chosenCard)
+			}
+		} else {
+			fmt.Println("\nAguardando oponente jogar...")
+		}
+		
     default:
         fmt.Printf("\nTipo desconhecido: '%s'\n", msg.Type)
     }
