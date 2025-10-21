@@ -14,20 +14,17 @@ import (
 	"pbl/client/models"
 	"pbl/client/utils"
 	"pbl/shared"
-	//"pbl/style"
 
 	"github.com/nats-io/nats.go"
 )
 
 func main() {
-	//Lista de servidores disponíveis
 	servers := []models.ServerInfo{
 		{ID: 1, Name: "Servidor 1", NATS: "nats://localhost:4223"},
 		{ID: 2, Name: "Servidor 2", NATS: "nats://localhost:4224"},
 		{ID: 3, Name: "Servidor 3", NATS: "nats://localhost:4225"},
 	}
 
-	//Escolha do servidor
 	chooseString := utils.EscolherServidor()
 	chooseInt, err := strconv.Atoi(chooseString)
 	if err != nil || chooseInt < 1 || chooseInt > len(servers) {
@@ -37,7 +34,6 @@ func main() {
 	chosenServer := servers[chooseInt-1]
 	fmt.Printf("\nVocê escolheu: %s (ID=%d)\n", chosenServer.Name, chosenServer.ID)
 
-	//Conexão NATS
 	nc, err := nats.Connect(chosenServer.NATS)
 	if err != nil {
 		log.Fatalf("Erro ao conectar no NATS do servidor escolhido: %v", err)
@@ -45,11 +41,9 @@ func main() {
 	defer nc.Close()
 	fmt.Println("Conectado ao NATS do servidor escolhido:", chosenServer.NATS)
 
-	//ID do cliente para NATS
 	clientID := fmt.Sprintf("cliente%d", utils.GerarIdAleatorio())
 	fmt.Printf("\nSeu ID desta sessão é: %s\n", clientID)
 
-	//Captura Ctrl+C para logout
 	sigs := make(chan os.Signal, 1)
 	signal.Notify(sigs, syscall.SIGINT, syscall.SIGTERM)
 	go func() {
@@ -58,22 +52,20 @@ func main() {
 		os.Exit(0)
 	}()
 
-	//Inicia menu inicial
 	handleMainMenu(nc, chosenServer, clientID)
 }
 
-//Menu inicial
 func handleMainMenu(nc *nats.Conn, server models.ServerInfo, clientID string) {
 	for {
 		option := utils.MenuInicial()
 		switch option {
-		case "1": //Login
+		case "1":
 			user, success := sendLoginRequest(nc, server, clientID)
 			if success {
 				user.UserId = clientID
 				startGameLoop(nc, server, clientID, user)
 			}
-		case "2": //Sair
+		case "2":
 			fmt.Println("Até mais!")
 			return
 		default:
@@ -82,7 +74,6 @@ func handleMainMenu(nc *nats.Conn, server models.ServerInfo, clientID string) {
 	}
 }
 
-//Login
 func sendLoginRequest(nc *nats.Conn, server models.ServerInfo, clientID string) (shared.User, bool) {
 	credentials := utils.Login()
 	jsonData, err := json.Marshal(credentials)
@@ -126,48 +117,41 @@ func sendLoginRequest(nc *nats.Conn, server models.ServerInfo, clientID string) 
 	return shared.User{}, false
 }
 
-//Loop principal do jogo
 func startGameLoop(nc *nats.Conn, server models.ServerInfo, clientID string, user shared.User) {
 	serverTopic := fmt.Sprintf("server.%d.requests", server.ID)
 	startHeartbeat(nc, clientID, serverTopic)
+	
 	for {
 		option := utils.ShowMenuPrincipal()
 		switch option {
-		case "1": // Entrar na fila
+		case "1":
 			clientTopic := fmt.Sprintf("client.%s.inbox", clientID)
+			matchChan := make(chan game.MatchInfo, 1)
 			
-			// Cria canal para receber o match
-			matchChan := make(chan shared.User, 1)
-			
-			// Inicia listener COM o canal
-			game.StartGameListener(nc, clientID, matchChan)
+			sub := game.StartGameListener(nc, clientID, matchChan, user)
 			
 			success := game.JoinQueue(nc, server, &user, clientTopic)
 			if !success {
 				fmt.Println("Não foi possível entrar na fila.")
+				if sub != nil {
+					sub.Unsubscribe()
+				}
 				continue
 			}
 
 			fmt.Println("Esperando por um adversário...")
 			
-			// Aguarda match
 			select {
-			case opponent := <-matchChan:
-				fmt.Printf("\nMatch confirmado! Jogando contra: %s\n", opponent.UserName)
-				opponentID := opponent.UserId
-
-				// Loop de turnos
-				for {
-					card, ok := game.ChooseCard(user)
-					if !ok {
-						fmt.Println("Saindo da partida...")
-						break
-					}
-					game.SendCardPlay(nc, server.ID, user.UserId, opponentID, card)
+			case matchInfo := <-matchChan:
+				if sub != nil {
+					sub.Unsubscribe()
 				}
+				
+				fmt.Printf("\n✓ Match confirmado! Jogando contra: %s\n", matchInfo.Opponent.UserName)
+				playGame(nc, &matchInfo.Room, user, matchInfo.Opponent)
 			}
 
-		case "2": // Deck
+		case "2":
 			optionGame := utils.ShowMenuDeck()
 			switch optionGame {
 			case "1":
@@ -175,17 +159,17 @@ func startGameLoop(nc *nats.Conn, server models.ServerInfo, clientID string, use
 			case "2":
 				fmt.Println("Visualizando cartas do deck...")
 			case "3":
-				fmt.Println("Alterar deck selecionado...")
+				fmt.Println("Alterar deck...")
 			case "4":
-				continue
+				continue 
 			default:
 				fmt.Println("Opção inválida.")
 			}
 
-		case "5": // Regras
+		case "5":
 			utils.ShowRules()
 
-		case "7": // Logout
+		case "7":
 			fmt.Println("Deslogando...")
 			logout(nc, server, clientID)
 			return
@@ -195,7 +179,98 @@ func startGameLoop(nc *nats.Conn, server models.ServerInfo, clientID string, use
 		}
 	}
 }
-//Logout
+
+func playGame(nc *nats.Conn, room *shared.GameRoom, currentUser shared.User, opponent shared.User) {
+	fmt.Println("\nPARTIDA INICIADA")
+
+	isMyTurn := room.Turn == currentUser.UserId
+	if isMyTurn {
+		fmt.Println("✓ Você começa!")
+	} else {
+		fmt.Printf("%s começa. Aguarde...\n", opponent.UserName)
+	}
+
+	gameOver := false
+	alreadyPlayed := false
+	gameMsgChan := make(chan shared.GameMessage, 10)
+	fmt.Println("só de teste: ", alreadyPlayed)
+
+	clientTopic := fmt.Sprintf("client.%s.inbox", currentUser.UserId)
+	sub, err := nc.Subscribe(clientTopic, func(msg *nats.Msg) {
+		var gameMsg shared.GameMessage
+		if err := json.Unmarshal(msg.Data, &gameMsg); err != nil {
+			log.Println("Erro ao decodificar mensagem:", err)
+			return
+		}
+		gameMsgChan <- gameMsg
+	})
+	if err != nil {
+		log.Println("Erro ao criar subscription:", err)
+		return
+	}
+	defer sub.Unsubscribe()
+
+	if isMyTurn {
+		card, ok := game.ChooseCard(currentUser)
+		if !ok {
+			fmt.Println("Você desistiu da partida.")
+			return
+		}
+		game.SendCardPlay(nc, room, currentUser.UserId, card)
+		fmt.Printf("\nVocê jogou: %s (%s)\n", card.Element, card.Type)
+		fmt.Println("Aguardando adversário...")
+		alreadyPlayed = true
+	}
+
+	for !gameOver {
+		select {
+		case gameMsg := <-gameMsgChan:
+			switch gameMsg.Type {
+			case "PLAY_CARD":
+				var card shared.Card
+				if len(gameMsg.Data) > 0 {
+					if err := json.Unmarshal(gameMsg.Data, &card); err != nil {
+						log.Println("Erro ao decodificar carta:", err)
+						continue
+					}
+				}
+
+				// Mensagem do adversário
+				if gameMsg.From == opponent.UserId {
+					fmt.Printf("\n%s jogou: %s (%s)\n", opponent.UserName, card.Element, card.Type)
+
+					room.Turn = currentUser.UserId
+					fmt.Println("\nSua vez!")
+					chosenCard, ok := game.ChooseCard(currentUser)
+					if ok {
+						game.SendCardPlay(nc, room, currentUser.UserId, chosenCard)
+						fmt.Printf("Você jogou: %s (%s)\n", chosenCard.Element, chosenCard.Type)
+						fmt.Println("Aguardando resultado...")
+					} else {
+						fmt.Println("Você desistiu da partida.")
+						return
+					}
+				}
+
+			case "ROUND_RESULT":
+				gameOver = true
+
+			case "GAME_OVER":
+				fmt.Println("\ncabou")
+				gameOver = true
+			}
+
+		case <-time.After(90 * time.Second):
+			fmt.Println("\nTimeout: servidor não respondeu.")
+			gameOver = true
+		}
+	}
+
+	fmt.Println("\nVoltando ao menu principal...")
+	time.Sleep(2 * time.Second)
+}
+
+
 func logout(nc *nats.Conn, server models.ServerInfo, clientID string) {
 	req := shared.Request{
 		ClientID: clientID,
@@ -223,7 +298,6 @@ func logout(nc *nats.Conn, server models.ServerInfo, clientID string) {
 	}
 }
 
-//Heartbeat
 func startHeartbeat(nc *nats.Conn, clientID, serverTopic string) {
 	go func() {
 		for {
@@ -237,5 +311,3 @@ func startHeartbeat(nc *nats.Conn, clientID, serverTopic string) {
 		}
 	}()
 }
-
-

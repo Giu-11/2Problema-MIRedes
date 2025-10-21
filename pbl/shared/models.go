@@ -7,9 +7,11 @@ import (
 
 type GameMessage struct {
 	Type string          `json:"type"`
+	Turn     string `json:"turn,omitempty"`
 	Data json.RawMessage `json:"data"`
 	From string             `json:"from"`
 	ServerID int             `json:"server_id"`
+	RoomID   string          `json:"room_id,omitempty"`
 }
 
 type User struct {
@@ -62,7 +64,7 @@ type GameRoom struct {
 	Player2   *User    `json:"player2"`
 	Player1ClientID string
     Player2ClientID string
-	Turn      *User    `json:"turn"`
+	Turn      string    `json:"username"`
 	Status    GameStatus     `json:"status"`
 	Winner    *User   `json:"winner,omitempty"`
 }

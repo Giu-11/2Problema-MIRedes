@@ -59,7 +59,7 @@ func JoinQueue(nc *nats.Conn, server models.ServerInfo, user *shared.User, clien
 	}
 
 	if resp.Status == "success" {
-		fmt.Println("Entrou na fila com sucesso.\n Aguardando pareamento...")
+		fmt.Println("Entrou na fila com sucesso.\nAguardando pareamento...")
 		user.Status = "in_queue"
 		return true
 	}
