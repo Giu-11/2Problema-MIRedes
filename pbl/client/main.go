@@ -153,27 +153,24 @@ func startGameLoop(nc *nats.Conn, server models.ServerInfo, clientID string, use
 			}
 
 		case "2":
-			optionGame := utils.ShowMenuDeck()
-			switch optionGame {
-			case "1":
-				fmt.Println("Visualizando todas as cartas do usuário...")
-			case "2":
-				fmt.Println("Visualizando cartas do deck...")
-			case "3":
-				fmt.Println("Alterar deck...")
-			case "4":
-				continue 
-			default:
-				fmt.Println("Opção inválida.")
-			}
-
+			style.Clear()
+			menuCard(nc, server, clientID, user)
+		case "3":
+			style.Clear()
+			handleClientDrawCard(nc, server, clientID)
+		case "4":
+			style.Clear()
+			fmt.Println("Troca de cartas não implementada")
 		case "5":
+			style.Clear()
 			utils.ShowRules()
-
+		case "6":
+			style.Clear()
+			fmt.Println("Ping não implementado")
 		case "7":
+			style.Clear()
 			fmt.Println("Deslogando...")
 			logout(nc, server, clientID)
-			return
 
 		default:
 			fmt.Println("Opção inválida.")
@@ -288,6 +285,23 @@ func playGame(nc *nats.Conn, room *shared.GameRoom, currentUser shared.User, opp
 	style.Clear()
 }
 
+func menuCard(nc *nats.Conn, server models.ServerInfo, clientID string, user shared.User){
+	sair := false
+	for !sair{
+		option := utils.ShowMenuCards()
+		switch option{
+		case "1":
+			style.Clear()
+			handleClientSeeDeck(nc, server, clientID)
+		case "2":
+			handleChangeDeck(nc, server, clientID)
+		case "3":
+			sair = true
+		}
+	}
+}
+
+// logout envia mensagem de LOGOUT
 func logout(nc *nats.Conn, server models.ServerInfo, clientID string) {
 	req := shared.Request{
 		ClientID: clientID,
@@ -315,6 +329,125 @@ func logout(nc *nats.Conn, server models.ServerInfo, clientID string) {
 	}
 }
 
+func handleClientDrawCard(nc *nats.Conn, server models.ServerInfo, clienteID string) {
+	fmt.Println("Enviando requisição para pegar uma carta...")
+	req := shared.Request{
+		ClientID: clienteID,
+		Action:   "OPEN_PACK",
+		Payload:  nil,
+	}
+	reqData, _ := json.Marshal(req)
+
+	topic := fmt.Sprintf("server.%d.requests", server.ID)
+	msg, err := nc.Request(topic, reqData, 5*time.Second)
+
+	if err != nil {
+		log.Printf("Erro na requisição para pegar carta: %v", err)
+		return // Sai da função imediatamente para evitar o crash.
+	}
+
+	// Como segurança extra, verificamos se a mensagem é válida antes de usá-la.
+	if msg == nil || msg.Data == nil {
+		log.Printf("O servidor retornou uma resposta vazia.")
+		return
+	}
+
+	var response shared.Response
+	if err := json.Unmarshal(msg.Data, &response); err != nil {
+		log.Printf("Erro ao decodificar resposta da carta: %v", err)
+		return
+	}
+
+	if response.Status == "success" {
+		var drawnData shared.CardDrawnData
+		if err := json.Unmarshal(response.Data, &drawnData); err != nil {
+			log.Printf("Erro ao decodificar os dados da carta: %v", err)
+			return
+		}
+		style.PrintVerd("\n[SUCESSO] Você pegou uma carta!\n")
+		fmt.Printf("   -> Carta: %s %s\n", drawnData.Card.Element, drawnData.Card.Type)
+	} else {
+		msg := fmt.Sprintf("\n[FALHA] Não foi possível pegar a carta: %s\n", response.Error)
+		style.PrintVerm(msg)
+	}
+}
+
+func handleClientSeeDeck(nc *nats.Conn, server models.ServerInfo, clientID string)[]shared.Card{
+	fmt.Println("Buscando cartas...")
+	req := shared.Request{
+		ClientID: clientID,
+		Action: "SEE_CARDS",
+		Payload: nil,
+	}
+	reqData,_ := json.Marshal(req)
+
+	topic := fmt.Sprintf("server.%d.requests", server.ID)
+	msg, err := nc.Request(topic, reqData, 5*time.Second)
+
+	if err != nil {
+		log.Printf("Erro na requisição para pegar carta: %v", err)
+		return nil// Sai da função imediatamente para evitar o crash
+	}
+
+	if msg == nil || msg.Data == nil{
+		log.Printf("O servidor retornou uma resposta vazia.")
+		return nil
+	}
+
+	var response shared.Response
+	if err := json.Unmarshal(msg.Data, &response); err != nil {
+		log.Printf("Erro ao decodificar resposta do inventário: %v", err)
+		return nil
+	}
+
+	if response.Status == "success"{
+		var inventario shared.Cards
+		if err := json.Unmarshal(response.Data, &inventario); err != nil {
+			log.Printf("Erro ao decodificar os dados do inventario: %v", err)
+			return nil
+		}
+		utils.MostrarInventario(inventario.Cards)
+		return inventario.Cards
+	} else {
+		msg := fmt.Sprintf("\n[FALHA] Não foi possível ver inventário: %s\n", response.Error)
+		style.PrintVerm(msg)
+	}
+
+	return nil
+}
+
+func handleChangeDeck(nc *nats.Conn, server models.ServerInfo, clientID string){
+	cards := handleClientSeeDeck(nc, server, clientID)
+	var selectedCards []int
+	var deck []shared.Card
+	if cards != nil{
+		for i := range(4){
+			valida := false
+			for ! valida{
+				fmt.Printf("Digite o número da %d° carta para o baralho: ", i+1)
+				in := utils.ReadLineSafe()
+				if inInt, err := strconv.Atoi(in); err == nil {
+					if inInt>=0 && inInt<len(cards) && !utils.Contains(selectedCards, inInt){
+						deck = append(deck, cards[inInt])
+						selectedCards = append(selectedCards, inInt)
+						valida = true
+					}else{
+						style.PrintMag("Valor inválido\n")
+					}
+				}else{
+					style.PrintMag("Valor inválido, digite o número da carta!\n")
+				}
+			}
+		}
+		fmt.Println(deck)
+	}
+
+	//TODO: Separar ^ em uma função
+	//TODO: mandar deck novo ao servidor
+	//TODO: mostrar deck montado ao cliente
+}
+
+// startHeartbeat envia HEARTBEAT periódico
 func startHeartbeat(nc *nats.Conn, clientID, serverTopic string) {
 	go func() {
 		for {

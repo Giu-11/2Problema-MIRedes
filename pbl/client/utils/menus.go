@@ -3,6 +3,7 @@ package utils
 import (
 	"fmt"
 	"pbl/shared"
+	"pbl/style"
 )
 
 //MENUS PARA BASE - sujeito a mudanças
@@ -74,26 +75,32 @@ func ShowRules() {
 
 }
 
-func ShowMenuDeck() string {
-	fmt.Println("\n--------------------------------")
-	fmt.Println("            Menu deck           ")
-	fmt.Println("--------------------------------")
-	fmt.Println("1 - Visualizar todas as cartas")
-	fmt.Println("2 - Visualizar cartas do deck")
-	fmt.Println("3 - Alterar o deck")
-	fmt.Println("4 - Voltar ao menu principal")
-	fmt.Print("Insira a opção desejada: ")
-	input := ReadLineSafe()
-	return input
+func ShowMenuCards()string{
+	fmt.Println("\n----------------------------------")
+	fmt.Println("            Menu Cartas             ")
+	fmt.Println("----------------------------------")
+	fmt.Println("1 - Ver cartas")
+	fmt.Println("2 - Mudar deck")
+	fmt.Println("3 - Voltar ao menu principal")
+	return ReadLineSafe()
 }
 
-//Printar as cartas do deck do usuário
-func ListCardsDeck(user *shared.User) {
-	fmt.Println("\n----------------------------------")
-	fmt.Println("             Seu deck             ")
-	fmt.Println("----------------------------------")
-	for i, card := range user.Deck {
-		fmt.Printf("[%d] %s - %s\n", i+1, card.Element, card.Type)
+
+func MostrarInventario(cartas []shared.Card){
+	fmt.Println("Suas cartas:")
+	for i,carta := range cartas{
+		msg := fmt.Sprintf("%d - %s %s\n", i, carta.Element, carta.Type)
+		switch carta.Element {
+		case "AR":
+			style.PrintCian(msg)
+		case "AGUA":
+			style.PrintAz(msg)
+		case "FOGO":
+			style.PrintVerm(msg)
+		case "TERRA":
+			style.PrintAma(msg)
+		case "MATO":
+			style.PrintVerd(msg)
+		}
 	}
-	fmt.Println("----------------------------------")
 }

@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"io"
 	"log"
+	"pbl/server/cards"
 	sharedRaft "pbl/server/shared"
 	"pbl/shared"
 	"sync"
@@ -14,13 +15,17 @@ import (
 
 // maquina de estados finitos
 type FSM struct {
-	mu    sync.Mutex
-	users map[string]shared.User // mapa de usuarios
+	mu           sync.Mutex
+	users        map[string]shared.User // mapa de usuarios
+	cardStock    []shared.Card
+	pendingCards map[string]shared.Card
 }
 
 func NewFSM() *FSM {
 	return &FSM{
-		users: make(map[string]shared.User),
+		users:        make(map[string]shared.User),
+		cardStock:    cards.GerarEstoque(),
+		pendingCards: make(map[string]shared.Card),
 	}
 }
 
@@ -35,14 +40,39 @@ func (fsm *FSM) Apply(logEntry *raft.Log) interface{} {
 	}
 
 	switch cmd.Type {
-	case sharedRaft.CommandLoginUser:
-		var user shared.User
-		if err := json.Unmarshal(cmd.Data, &user); err != nil {
-			log.Printf("[FSM] ERROR: failed to unmarshal user data: %s", err)
-			return err
+	case sharedRaft.CommandOpenPack:
+		var payload sharedRaft.DrawCardPayload
+		if err := json.Unmarshal(cmd.Data, &payload); err != nil {
+			return fmt.Errorf("failed to unmarshal DrawCardPayload: %w", err)
 		}
-		log.Printf("[FSM] Applying command: Register User '%s'", user.UserName)
-		fsm.users[user.UserName] = user
+
+		if card, exists := fsm.pendingCards[payload.RequestID]; exists {
+			log.Printf("[FSM] Comando DRAW_CARD repetido para RequestID %s. Retornando carta já pendente: %s", payload.RequestID, card.Type)
+			return card
+		}
+
+		if len(fsm.cardStock) == 0 {
+			log.Println("[FSM] Tentativa de pegar carta do estoque, mas está vazio.")
+			fsm.cardStock = cards.GerarEstoque()
+			log.Println("\tNOVAS CARTAS ADICIONADAS NO ESTOQUE")
+			//return "STOCK_EMPTY"
+		}
+
+		drawnCard := fsm.cardStock[0]
+		fsm.cardStock = fsm.cardStock[1:]
+		fsm.pendingCards[payload.RequestID] = drawnCard
+
+		log.Printf("[FSM] Carta '%s' reservada para RequestID %s. Estoque restante: %d", drawnCard.Element, payload.RequestID, len(fsm.cardStock))
+		return drawnCard
+
+	case sharedRaft.CommandClaimCard:
+		var payload sharedRaft.ClaimCardPayload
+		if err := json.Unmarshal(cmd.Data, &payload); err != nil {
+			return fmt.Errorf("failed to unmarshal ClaimCardPayload: %w", err)
+		}
+
+		delete(fsm.pendingCards, payload.RequestID)
+		log.Printf("[FSM] Carta para RequestID %s foi reivindicada e removida de pendentes.", payload.RequestID)
 		return nil
 
 	default:
@@ -50,40 +80,50 @@ func (fsm *FSM) Apply(logEntry *raft.Log) interface{} {
 	}
 }
 
-// cria saves do estado do servidor
-func (fsm *FSM) Snapshot() (raft.FSMSnapshot, error) {
-	fsm.mu.Lock()
-	defer fsm.mu.Unlock()
+type FSMState struct {
+	CardStock    []shared.Card
+	PendingCards map[string]shared.Card
+}
 
-	usersCopy := make(map[string]shared.User)
-	for k, v := range fsm.users {
-		usersCopy[k] = v
+// cria saves do estado do servidor
+func (f *FSM) Snapshot() (raft.FSMSnapshot, error) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+
+	state := &FSMState{
+		CardStock:    make([]shared.Card, len(f.cardStock)),
+		PendingCards: make(map[string]shared.Card),
 	}
-	return &fsmSnapshot{users: usersCopy}, nil
+	copy(state.CardStock, f.cardStock)
+	for k, v := range f.pendingCards {
+		state.PendingCards[k] = v
+	}
+
+	return &fsmSnapshot{state: state}, nil
 }
 
 // Restaura a fsm a partir de um snapshot
-func (fsm *FSM) Restore(rc io.ReadCloser) error {
-	fsm.mu.Lock()
-	defer fsm.mu.Unlock()
+func (f *FSM) Restore(rc io.ReadCloser) error {
+	f.mu.Lock()
+	defer f.mu.Unlock()
 
-	var users map[string]shared.User
-	if err := json.NewDecoder(rc).Decode(&users); err != nil {
+	var state FSMState
+	if err := json.NewDecoder(rc).Decode(&state); err != nil {
 		return err
 	}
-	fsm.users = users
+	f.cardStock = state.CardStock
+	f.pendingCards = state.PendingCards
 	return nil
 }
 
 // snapshot do estado do servidor
 type fsmSnapshot struct {
-	users map[string]shared.User
+	state *FSMState
 }
 
 func (s *fsmSnapshot) Persist(sink raft.SnapshotSink) error {
 	err := func() error {
-		// Codifica e salva o snapshot escrevendo no disco
-		if err := json.NewEncoder(sink).Encode(s.users); err != nil {
+		if err := json.NewEncoder(sink).Encode(s.state); err != nil {
 			return err
 		}
 		return sink.Close()

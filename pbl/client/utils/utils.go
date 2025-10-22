@@ -7,9 +7,10 @@ import (
 	"fmt"
 	"math"
 	"os"
+	"os/exec"
+	"runtime"
 	"strings"
 	//"time"
-
 	//"pbl/shared"
 )
 
@@ -21,6 +22,31 @@ func ReadLineSafe() string {
         return ""
     }
     return strings.TrimSpace(input)
+}
+
+func Contains(slice []int, value int) bool {
+    for _, v := range slice {
+        if v == value {
+            return true
+        }
+    }
+    return false
+}
+
+func Clear() {
+	nameOS := runtime.GOOS
+	fmt.Println("Sistema operacional:", nameOS)
+
+	var cmd *exec.Cmd
+	if nameOS == "windows" {
+		cmd = exec.Command("cmd", "/c", "cls")
+	} else {
+		cmd = exec.Command("clear")
+	}
+
+	cmd.Stdout = os.Stdout
+	cmd.Stderr = os.Stderr
+	cmd.Run()
 }
 
 func GerarIdAleatorio() int {
