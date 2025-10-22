@@ -14,6 +14,7 @@ import (
 	"pbl/client/models"
 	"pbl/client/utils"
 	"pbl/shared"
+	"pbl/style"
 
 	"github.com/nats-io/nats.go"
 )
@@ -191,9 +192,8 @@ func playGame(nc *nats.Conn, room *shared.GameRoom, currentUser shared.User, opp
 	}
 
 	gameOver := false
-	alreadyPlayed := false
+	alreadyPlayed := false // faz o controle das jogadas
 	gameMsgChan := make(chan shared.GameMessage, 10)
-	fmt.Println("só de teste: ", alreadyPlayed)
 
 	clientTopic := fmt.Sprintf("client.%s.inbox", currentUser.UserId)
 	sub, err := nc.Subscribe(clientTopic, func(msg *nats.Msg) {
@@ -219,7 +219,7 @@ func playGame(nc *nats.Conn, room *shared.GameRoom, currentUser shared.User, opp
 		game.SendCardPlay(nc, room, currentUser.UserId, card)
 		fmt.Printf("\nVocê jogou: %s (%s)\n", card.Element, card.Type)
 		fmt.Println("Aguardando adversário...")
-		alreadyPlayed = true
+		alreadyPlayed = true //já jogou
 	}
 
 	for !gameOver {
@@ -227,28 +227,34 @@ func playGame(nc *nats.Conn, room *shared.GameRoom, currentUser shared.User, opp
 		case gameMsg := <-gameMsgChan:
 			switch gameMsg.Type {
 			case "PLAY_CARD":
-				var card shared.Card
-				if len(gameMsg.Data) > 0 {
-					if err := json.Unmarshal(gameMsg.Data, &card); err != nil {
-						log.Println("Erro ao decodificar carta:", err)
-						continue
-					}
-				}
-
-				// Mensagem do adversário
+				//Mensagem do adversário jogando
 				if gameMsg.From == opponent.UserId {
+					var card shared.Card
+					if len(gameMsg.Data) > 0 {
+						if err := json.Unmarshal(gameMsg.Data, &card); err != nil {
+							log.Println("Erro ao decodificar carta:", err)
+							continue
+						}
+					}
+
 					fmt.Printf("\n%s jogou: %s (%s)\n", opponent.UserName, card.Element, card.Type)
 
-					room.Turn = currentUser.UserId
-					fmt.Println("\nSua vez!")
-					chosenCard, ok := game.ChooseCard(currentUser)
-					if ok {
-						game.SendCardPlay(nc, room, currentUser.UserId, chosenCard)
-						fmt.Printf("Você jogou: %s (%s)\n", chosenCard.Element, chosenCard.Type)
-						fmt.Println("Aguardando resultado...")
+					if !alreadyPlayed {
+						room.Turn = currentUser.UserId
+						fmt.Println("\nSua vez!")
+						
+						chosenCard, ok := game.ChooseCard(currentUser)
+						if ok {
+							game.SendCardPlay(nc, room, currentUser.UserId, chosenCard)
+							fmt.Printf("Você jogou: %s (%s)\n", chosenCard.Element, chosenCard.Type)
+							fmt.Println("Aguardando resultado...")
+							alreadyPlayed = true //cliente jogou
+						} else {
+							fmt.Println("Você desistiu da partida.")
+							return
+						}
 					} else {
-						fmt.Println("Você desistiu da partida.")
-						return
+						fmt.Println("Aguardando resultado da rodada...")
 					}
 				}
 
@@ -256,17 +262,18 @@ func playGame(nc *nats.Conn, room *shared.GameRoom, currentUser shared.User, opp
 				fmt.Println("\n--------------------------------")
 				fmt.Println("            Resultado           ")
 				fmt.Println("--------------------------------")
-				//fmt.Println("Bruto: ", gameMsg.Winner)
-				if gameMsg.Winner == nil{
+				
+				if gameMsg.Winner == nil {
 					fmt.Println("Empate dos jogadores!")
-				}else{
-					fmt.Println("Vencedor: ", gameMsg.Winner.UserName)		
+				} else {
+					fmt.Println("Vencedor: ", gameMsg.Winner.UserName)
 				}
 
+				alreadyPlayed = false
 				gameOver = true
 
 			case "GAME_OVER":
-				fmt.Println("\ncabou")
+				fmt.Println("\nJogo finalizado!")
 				gameOver = true
 			}
 
@@ -276,10 +283,10 @@ func playGame(nc *nats.Conn, room *shared.GameRoom, currentUser shared.User, opp
 		}
 	}
 
-	fmt.Println("\nVoltando ao menu principal...")
-	time.Sleep(2 * time.Second)
+	fmt.Print("Pressione ENTER para voltar ao menu principal...")
+	fmt.Scanln()
+	style.Clear()
 }
-
 
 func logout(nc *nats.Conn, server models.ServerInfo, clientID string) {
 	req := shared.Request{
