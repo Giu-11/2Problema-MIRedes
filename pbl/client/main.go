@@ -253,6 +253,16 @@ func playGame(nc *nats.Conn, room *shared.GameRoom, currentUser shared.User, opp
 				}
 
 			case "ROUND_RESULT":
+				fmt.Println("\n--------------------------------")
+				fmt.Println("            Resultado           ")
+				fmt.Println("--------------------------------")
+				//fmt.Println("Bruto: ", gameMsg.Winner)
+				if gameMsg.Winner == nil{
+					fmt.Println("Empate dos jogadores!")
+				}else{
+					fmt.Println("Vencedor: ", gameMsg.Winner.UserName)		
+				}
+
 				gameOver = true
 
 			case "GAME_OVER":

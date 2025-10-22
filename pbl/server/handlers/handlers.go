@@ -261,6 +261,7 @@ func HandleGameMessage(server *models.Server, request shared.Request, nc *nats.C
         return
     }
     room.PlayersCards[gameMsg.From] = card
+    fmt.Println("Carta que chegou: ", card)
 
     //Determina quem será o próximo
     var nextTurn string
@@ -280,20 +281,28 @@ func HandleGameMessage(server *models.Server, request shared.Request, nc *nats.C
     }
     dataTurn, _ := json.Marshal(turnMsg)
 
-    for _, player := range []*shared.User{room.Player1, room.Player2} {
+    /*for _, player := range []*shared.User{room.Player1, room.Player2} {
         nc.Publish(fmt.Sprintf("client.%s.inbox", player.UserId), dataTurn)
+    }*/
+    opponentID := room.Player1.UserId
+    if gameMsg.From == room.Player1.UserId{
+        opponentID = room.Player2.UserId
     }
+
+    nc.Publish(fmt.Sprintf("client.%s.inbox", opponentID), dataTurn)
 
     //Se ambos jogaram, calcula resultado
     if len(room.PlayersCards) == 2 {
         cardP1 := room.PlayersCards[room.Player1.UserId]
         cardP2 := room.PlayersCards[room.Player2.UserId]
-
+        fmt.Println("Carta p1: ", cardP1)
+        fmt.Println("Carta p2: ", cardP2)
         resultP1 := game.CheckWinner(cardP1, cardP2)
         game.NotifyResult(nc, room, resultP1)
 
         // Limpa cartas para a próxima rodada
         room.PlayersCards = make(map[string]shared.Card)
+        return
     }
 }
 

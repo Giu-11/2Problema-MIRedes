@@ -64,18 +64,31 @@ func SendCardPlay(nc *nats.Conn, room *shared.GameRoom, fromUserID string, card 
 
 
 func SendCardPlay(nc *nats.Conn, room *shared.GameRoom, fromUserID string, card shared.Card) {
-    dataBytes, _ := json.Marshal(card)
+	dataBytes, _ := json.Marshal(card)
 
-    msg := shared.GameMessage{
-        Type: "PLAY_CARD",
-        Data: dataBytes,
-        From: fromUserID,
-    }
+	gameMsg := shared.GameMessage{
+		Type:   "PLAY_CARD",
+		From:   fromUserID,
+		RoomID: room.ID,
+		Data:   dataBytes,
+	}
 
-    bytes, _ := json.Marshal(msg)
-    topic := fmt.Sprintf("server.%d.requests", room.ServerID)
-    nc.Publish(topic, bytes)
+	payload, _ := json.Marshal(gameMsg)
+
+	req := shared.Request{
+		ClientID: fromUserID,
+		Action:   "GAME_MESSAGE",
+		Payload:  payload,
+	}
+
+	reqBytes, _ := json.Marshal(req)
+	topic := fmt.Sprintf("server.%d.requests", room.ServerID)
+
+	log.Printf("[DEBUG] Enviando jogada para o servidor %d (sala %s): %+v\n", room.ServerID, room.ID, card)
+
+	nc.Publish(topic, reqBytes)
 }
+
 
 
 func StartGameListener(nc *nats.Conn, clientID string, matchChan chan<- MatchInfo, currentUser shared.User) *nats.Subscription {

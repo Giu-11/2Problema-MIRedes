@@ -44,7 +44,7 @@ func CheckWinner(card1, card2 shared.Card) string{
 		case "TERRA", "MATO":
 			return "PERDEU"
 		}
-	case "MATO": //carta do mal. Só empata ou perde✨ //Essa carta vai estar nos pacotes.
+	case "MATO": //carta do mal. Só empata ou perde✨
 	//Percebi agora que é só o usuário não colocar essa carta no deck...
 		switch card2.Element {
 		case "MATO":

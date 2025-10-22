@@ -12,6 +12,7 @@ type GameMessage struct {
 	From string             `json:"from"`
 	ServerID int             `json:"server_id"`
 	RoomID   string          `json:"room_id,omitempty"`
+	Winner    *User   `json:"winner,omitempty"`
 	Result string 
 }
 

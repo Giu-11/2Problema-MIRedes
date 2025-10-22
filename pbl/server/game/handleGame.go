@@ -50,18 +50,24 @@ func NotifyResult(nc *nats.Conn, room *shared.GameRoom, resultP1 string) {
 	switch resultP1 {
 	case "GANHOU":
 		resultP2 = "PERDEU"
+		room.Winner = room.Player1
+		fmt.Println("P2 perdeu tadinho")
 	case "PERDEU":
 		resultP2 = "GANHOU"
+		room.Winner = room.Player2
+		fmt.Println("P2 ganhou")
 	case "EMPATE":
 		resultP2 = "EMPATE"
+		room.Winner = nil
+		fmt.Println("Emapntou")
 	}
 
 	//Notifica Player1
 	msgP1 := shared.GameMessage{
 		Type:   "ROUND_RESULT",
 		From:   "SERVER",
-		Turn:   room.Player2.UserId, 
 		Result: resultP1,
+		Winner: room.Winner,
 	}
 	dataP1, _ := json.Marshal(msgP1)
 	nc.Publish(fmt.Sprintf("client.%s.inbox", room.Player1.UserId), dataP1)
@@ -70,8 +76,8 @@ func NotifyResult(nc *nats.Conn, room *shared.GameRoom, resultP1 string) {
 	msgP2 := shared.GameMessage{
 		Type:   "ROUND_RESULT",
 		From:   "SERVER",
-		Turn:   room.Player2.UserId,
 		Result: resultP2,
+		Winner: room.Winner,
 	}
 	dataP2, _ := json.Marshal(msgP2)
 	nc.Publish(fmt.Sprintf("client.%s.inbox", room.Player2.UserId), dataP2)
