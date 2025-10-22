@@ -139,7 +139,6 @@ func HandleLogin(server *models.Server, request shared.Request, nc *nats.Conn, m
     nc.Publish(msg.Reply, data)
 }
 
-
 //Helper para converter qualquer struct em json.RawMessage
 func mustMarshal(v interface{}) json.RawMessage {
     b, _ := json.Marshal(v)

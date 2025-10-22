@@ -71,4 +71,9 @@ type GameRoom struct {
 	Winner    *User   `json:"winner,omitempty"`
 	ServerID int             `json:"server_id"`
 	PlayersCards map[string]Card
+
+	//para a parte "global"
+	MasterServerID int `json:"master_server_id,omitempty"`
+	Server1ID      int `json:"server1_id,omitempty"`
+	Server2ID      int `json:"server2_id,omitempty"`
 }

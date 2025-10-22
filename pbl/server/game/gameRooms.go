@@ -7,7 +7,6 @@ import (
 	"fmt"
 	"math"
 	"math/big"
-	"strconv"
 	"sync"
 
 	"pbl/shared"
@@ -21,7 +20,7 @@ var (
 )
 
 func CreateRoom(player1, player2 *shared.User, nc *nats.Conn, serverID int) *shared.GameRoom {
-    roomID := generateRoomID()
+    roomID := generateRoomID(serverID)
     var turn string
     n, _ := rand.Int(rand.Reader, big.NewInt(2)) //sorteio da vez
     if n.Int64() == 0 {
@@ -48,14 +47,14 @@ func CreateRoom(player1, player2 *shared.User, nc *nats.Conn, serverID int) *sha
     return room
 }
 
-func generateRoomID() string {
+func generateRoomID(serverID int) string {
 	var b [4]byte
 	_, err := rand.Read(b[:])
 	if err != nil {
 		panic(err)
 	}
 	id := int(binary.LittleEndian.Uint32(b[:]))
-	return strconv.Itoa(int(math.Abs(float64(id))))
+	return fmt.Sprintf("%d-%d", serverID, int(math.Abs(float64(id))))
 }
 
 //Notificar a vez 

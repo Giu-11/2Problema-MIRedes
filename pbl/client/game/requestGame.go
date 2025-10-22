@@ -89,8 +89,6 @@ func SendCardPlay(nc *nats.Conn, room *shared.GameRoom, fromUserID string, card 
 	nc.Publish(topic, reqBytes)
 }
 
-
-
 func StartGameListener(nc *nats.Conn, clientID string, matchChan chan<- MatchInfo, currentUser shared.User) *nats.Subscription {
 	clientTopic := fmt.Sprintf("client.%s.inbox", clientID)
 
