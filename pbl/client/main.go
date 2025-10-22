@@ -419,6 +419,45 @@ func handleClientSeeDeck(nc *nats.Conn, server models.ServerInfo, clientID strin
 
 func handleChangeDeck(nc *nats.Conn, server models.ServerInfo, clientID string){
 	cards := handleClientSeeDeck(nc, server, clientID)
+	deck := choseDeck(cards)
+	utils.MostrarInventario(deck)
+
+
+	deckCodf, err := json.Marshal(deck)
+	if err!=nil{
+		fmt.Printf("\nErro ao converter para JSON: %v", err)
+		return
+	}
+	req := shared.Request{
+		ClientID: clientID,
+		Action: "CHANGE_DECK",
+		Payload: deckCodf,
+	}
+	reqData, _ := json.Marshal(req)
+	topic := fmt.Sprintf("server.%d.requests", server.ID)
+	msg, err := nc.Request(topic, reqData, 5*time.Second)
+	if err != nil{
+		fmt.Printf("\nErro ao salvar deck: %v", err)
+		return
+
+	}
+	var response shared.Response
+	if err := json.Unmarshal(msg.Data, &response); err != nil {
+		fmt.Printf("\nErro ao decodificar resposta do servidor: %v", err)
+		return
+	}
+	if response.Status == "success"{
+		style.PrintVerd("Deck salvo!")
+	} else {
+		style.PrintVerm("Erro ao salvar deck, tente novamente")
+	}
+
+
+
+	//TODO: mandar deck novo ao servidor
+}
+
+func choseDeck(cards []shared.Card) []shared.Card{
 	var selectedCards []int
 	var deck []shared.Card
 	if cards != nil{
@@ -440,12 +479,8 @@ func handleChangeDeck(nc *nats.Conn, server models.ServerInfo, clientID string){
 				}
 			}
 		}
-		fmt.Println(deck)
 	}
-
-	//TODO: Separar ^ em uma função
-	//TODO: mandar deck novo ao servidor
-	//TODO: mostrar deck montado ao cliente
+	return deck
 }
 
 // startHeartbeat envia HEARTBEAT periódico

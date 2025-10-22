@@ -89,7 +89,7 @@ func ShowMenuCards()string{
 func MostrarInventario(cartas []shared.Card){
 	fmt.Println("Suas cartas:")
 	for i,carta := range cartas{
-		msg := fmt.Sprintf("%d - %s %s\n", i, carta.Element, carta.Type)
+		msg := fmt.Sprintf("[%d] - %s %s\n", i, carta.Element, carta.Type)
 		switch carta.Element {
 		case "AR":
 			style.PrintCian(msg)
@@ -111,7 +111,20 @@ func ListCardsDeck(user *shared.User) {
 	fmt.Println("             Seu deck             ")
 	fmt.Println("----------------------------------")
 	for i, card := range user.Deck {
-		fmt.Printf("[%d] %s - %s\n", i+1, card.Element, card.Type)
+		//fmt.Printf("[%d] %s - %s\n", i+1, card.Element, card.Type)
+		msg := fmt.Sprintf("[%d] - %s %s\n", i, card.Element, card.Type)
+		switch card.Element {
+		case "AR":
+			style.PrintCian(msg)
+		case "AGUA":
+			style.PrintAz(msg)
+		case "FOGO":
+			style.PrintVerm(msg)
+		case "TERRA":
+			style.PrintAma(msg)
+		case "MATO":
+			style.PrintVerd(msg)
+		}
 	}
 	fmt.Println("----------------------------------")
 }

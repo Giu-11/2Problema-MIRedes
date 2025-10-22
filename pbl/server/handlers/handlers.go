@@ -474,6 +474,38 @@ func HandleGameMessage(server *models.Server, request shared.Request, nc *nats.C
     }
 }
 
+func HandleChangeDeck(server *models.Server, request shared.Request, nc *nats.Conn, msg *nats.Msg){
+	var deck []shared.Card
+	if err := json.Unmarshal(request.Payload, &deck); err != nil{
+		log.Printf("[%d] - Erro ao desserializar o deck: %v", server.ID, err)
+		resp := shared.Response{
+            Status: "error",
+            Action: "CHANGE_DECK_FAIL",
+            Error:  "payload inválido",
+            Server: server.ID,
+        }
+		data, _ := json.Marshal(resp)
+        nc.Publish(msg.Reply, data)
+        return
+	}
+
+	server.Mu.Lock()
+	defer server.Mu.Unlock()
+
+	user := server.Users[request.ClientID]
+	user.Deck = deck
+	server.Users[request.ClientID] = user
+
+	resp := shared.Response{
+            Status: "success",
+            Action: "CHANGE_DECK",
+            Server: server.ID,
+        }
+	data, _ := json.Marshal(resp)
+	nc.Publish(msg.Reply, data)
+	fmt.Printf("%s deck atualizado\n", request.ClientID)
+}
+
 // Função auxiliar para enviar respostas de sucesso
 func respondWithSuccess(nc *nats.Conn, msg *nats.Msg, card shared.Card) {
 	responseData := shared.CardDrawnData{Card: card, RequestID: "client-facing-id"}
