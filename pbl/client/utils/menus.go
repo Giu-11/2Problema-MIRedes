@@ -55,6 +55,17 @@ func ShowRules() {
 
 }
 
+func ShowMenuCards()string{
+	fmt.Println("\n----------------------------------")
+	fmt.Println("            Menu Cartas             ")
+	fmt.Println("----------------------------------")
+	fmt.Println("1 - Ver cartas")
+	fmt.Println("2 - Mudar deck")
+	fmt.Println("3 - Voltar ao menu principal")
+	return ReadLineSafe()
+}
+
+
 func MostrarInventario(cartas []shared.Card){
 	fmt.Println("Suas cartas:")
 	for i,carta := range cartas{

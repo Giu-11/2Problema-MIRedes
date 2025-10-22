@@ -22,6 +22,15 @@ func ReadLineSafe() string {
     return strings.TrimSpace(input)
 }
 
+func Contains(slice []int, value int) bool {
+    for _, v := range slice {
+        if v == value {
+            return true
+        }
+    }
+    return false
+}
+
 func Clear() {
 	nameOS := runtime.GOOS
 	fmt.Println("Sistema operacional:", nameOS)
