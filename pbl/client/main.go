@@ -171,6 +171,7 @@ func startGameLoop(nc *nats.Conn, server models.ServerInfo, clientID string, use
 			style.Clear()
 			fmt.Println("Deslogando...")
 			logout(nc, server, clientID)
+			return
 
 		default:
 			fmt.Println("Opção inválida.")
