@@ -325,7 +325,7 @@ func claimCard(server *models.Server, requestID string) {
 	}
 }
 
-func SeeCardsHandler(server *models.Server, request shared.Request, nc *nats.Conn, message *nats.Msg){
+func HandleSeeCards(server *models.Server, request shared.Request, nc *nats.Conn, message *nats.Msg){
 	server.Mu.Lock()
 	cards := shared.Cards {
 		Cards : server.Users[request.ClientID].Cards,
@@ -335,6 +335,22 @@ func SeeCardsHandler(server *models.Server, request shared.Request, nc *nats.Con
 		Status: "success",
 		Action: "SEE_CARDS",
 		Data: mustMarshal(cards),
+		Server: server.ID,
+	}
+	data, _ := json.Marshal(resp)
+	nc.Publish(message.Reply, data)
+}
+
+func HandleSeeDeck(server *models.Server, request shared.Request, nc *nats.Conn, message *nats.Msg){
+	server.Mu.Lock()
+	deck := shared.Cards{
+		Cards: server.Users[request.ClientID].Deck,
+	}
+	server.Mu.Unlock()
+	resp := shared.Response{
+		Status: "success",
+		Action: "SEE_DECK",
+		Data: mustMarshal(deck),
 		Server: server.ID,
 	}
 	data, _ := json.Marshal(resp)

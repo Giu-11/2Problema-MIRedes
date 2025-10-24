@@ -293,10 +293,12 @@ func menuCard(nc *nats.Conn, server models.ServerInfo, clientID string, user sha
 		switch option{
 		case "1":
 			style.Clear()
-			handleClientSeeDeck(nc, server, clientID)
+			handleClientSeeCards(nc, server, clientID)
 		case "2":
 			handleChangeDeck(nc, server, clientID)
 		case "3":
+			handleClientSeeDeck(nc, server, clientID)
+		case "4":
 			sair = true
 		}
 	}
@@ -373,7 +375,7 @@ func handleClientDrawCard(nc *nats.Conn, server models.ServerInfo, clienteID str
 	}
 }
 
-func handleClientSeeDeck(nc *nats.Conn, server models.ServerInfo, clientID string)[]shared.Card{
+func handleClientSeeCards(nc *nats.Conn, server models.ServerInfo, clientID string)[]shared.Card{
 	fmt.Println("Buscando cartas...")
 	req := shared.Request{
 		ClientID: clientID,
@@ -418,7 +420,7 @@ func handleClientSeeDeck(nc *nats.Conn, server models.ServerInfo, clientID strin
 }
 
 func handleChangeDeck(nc *nats.Conn, server models.ServerInfo, clientID string){
-	cards := handleClientSeeDeck(nc, server, clientID)
+	cards := handleClientSeeCards(nc, server, clientID)
 	deck := choseDeck(cards)
 	utils.MostrarInventario(deck)
 
@@ -451,10 +453,6 @@ func handleChangeDeck(nc *nats.Conn, server models.ServerInfo, clientID string){
 	} else {
 		style.PrintVerm("Erro ao salvar deck, tente novamente")
 	}
-
-
-
-	//TODO: mandar deck novo ao servidor
 }
 
 func choseDeck(cards []shared.Card) []shared.Card{
@@ -482,6 +480,52 @@ func choseDeck(cards []shared.Card) []shared.Card{
 	}
 	return deck
 }
+
+
+func handleClientSeeDeck(nc *nats.Conn, server models.ServerInfo, clientID string)[]shared.Card{
+	fmt.Println("Buscando cartas...")
+	req := shared.Request{
+		ClientID: clientID,
+		Action: "SEE_DECK",
+		Payload: nil,
+	}
+	reqData,_ := json.Marshal(req)
+
+	topic := fmt.Sprintf("server.%d.requests", server.ID)
+	msg, err := nc.Request(topic, reqData, 5*time.Second)
+
+	if err != nil {
+		log.Printf("Erro na requisição para pegar carta: %v", err)
+		return nil// Sai da função imediatamente para evitar o crash
+	}
+
+	if msg == nil || msg.Data == nil{
+		log.Printf("O servidor retornou uma resposta vazia.")
+		return nil
+	}
+
+	var response shared.Response
+	if err := json.Unmarshal(msg.Data, &response); err != nil {
+		log.Printf("Erro ao decodificar resposta do inventário: %v", err)
+		return nil
+	}
+
+	if response.Status == "success"{
+		var inventario shared.Cards
+		if err := json.Unmarshal(response.Data, &inventario); err != nil {
+			log.Printf("Erro ao decodificar os dados do deck: %v", err)
+			return nil
+		}
+		utils.MostrarInventario(inventario.Cards)
+		return inventario.Cards
+	} else {
+		msg := fmt.Sprintf("\n[FALHA] Não foi possível ver deck: %s\n", response.Error)
+		style.PrintVerm(msg)
+	}
+
+	return nil
+}
+
 
 // startHeartbeat envia HEARTBEAT periódico
 func startHeartbeat(nc *nats.Conn, clientID, serverTopic string) {

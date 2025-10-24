@@ -53,9 +53,11 @@ func StartNats(server *models.Server) (*nats.Conn, error) {
 		case "OPEN_PACK":
 			handlers.HandleDrawCard(server, req, nc, msg)
 		case "SEE_CARDS":
-			handlers.SeeCardsHandler(server, req, nc, msg)
+			handlers.HandleSeeCards(server, req, nc, msg)
 		case "CHANGE_DECK":
 			handlers.HandleChangeDeck(server, req, nc, msg)
+		case "SEE_DECK":
+			handlers.HandleSeeDeck(server, req, nc, msg)
 		}
 
 	})
