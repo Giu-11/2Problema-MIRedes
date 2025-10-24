@@ -4,9 +4,15 @@ import "encoding/json"
 
 // tipos de comando que podemos usar no log do Raft
 // const CommandRegisterUser = "REGISTER_USER"
-const CommandLoginUser = "LOGIN"
-const CommandOpenPack = "ABRIR_PACOTE"
-const CommandClaimCard = "RESGATAR_CARTA"
+const(
+	CommandLoginUser  = "LOGIN"
+	CommandOpenPack   = "ABRIR_PACOTE"
+	CommandClaimCard  = "RESGATAR_CARTA"
+	CommandQueueJoin  = "QUEUE_JOIN"
+	CommandQueueLeave = "QUEUE_LEAVE"
+	CommandCreateRoom = "CREATE_ROOM"
+	CommandMatchPlayers  = "MATCH_PLAYERS"
+)
 
 // command representa uma ação a ser aplicada na maquina de estados
 type Command struct {
@@ -23,4 +29,22 @@ type DrawCardPayload struct {
 // informações sobre um pedido de pegar a carta
 type ClaimCardPayload struct {
 	RequestID string `json:"request_id"`
+}
+
+type GlobalQueueJoinPayload struct{
+	PlayerID string `json:"player_id"`
+	ServerID string `json:"server_id"`
+}
+
+type GlobalQueueLeavePayload struct{
+	PlayerID string `json:"player_id"`
+	ServerID string `json:"server_id"`
+}
+
+type GlobalRoomPayload struct{
+	RoomID string `json:"room_id"`
+	Player1 string `json:"player1"`
+	Player2 string `json:"player2"`
+	Server1 string `json:"server1"`
+	Server2 string `json:"server2"`
 }

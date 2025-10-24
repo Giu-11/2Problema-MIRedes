@@ -116,7 +116,7 @@ func sendToGlobalQueue(entry shared.QueueEntry, server *models.Server, nc *nats.
 }
 
 // Adiciona cliente na fila global do líder e replica via Raft
-func handleJoinGlobalQueueLeader(entry shared.QueueEntry, server *models.Server) {
+/*func handleJoinGlobalQueueLeader(entry shared.QueueEntry, server *models.Server) {
 	// Protege acesso à fila global
 	server.Matchmaking.Mutex.Lock()
 	server.Matchmaking.GlobalQueue = append(server.Matchmaking.GlobalQueue, entry)
@@ -131,6 +131,24 @@ func handleJoinGlobalQueueLeader(entry shared.QueueEntry, server *models.Server)
 	}
 	data, _ := json.Marshal(cmd)
 	server.Raft.Apply(data, 5*time.Second) //replica o estado
+}*/
+
+func handleJoinGlobalQueueLeader(entry shared.QueueEntry, server *models.Server){
+	log.Print("testando entrar na fila global")
+	dataEntry, _ := json.Marshal(entry)
+	cmd := sharedRaft.Command{
+		Type: sharedRaft.CommandQueueJoin,
+		Data: dataEntry,
+
+	}
+	data, _ := json.Marshal(cmd)
+
+	f := server.Raft.Apply(data, 5*time.Second)
+	if err := f.Error(); err != nil{
+		log.Printf("[Líder] Erro ao aplicar comando Raft: %v", err)
+		return
+	}
+	log.Printf("[Líder] Cliente %s entrou na fila global", entry.Player.UserName)
 }
 
 func MatchLocalQueue(server *models.Server, nc *nats.Conn) {

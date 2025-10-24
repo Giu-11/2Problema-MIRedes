@@ -60,6 +60,16 @@ func GerarIdAleatorio() int {
 	return int(math.Abs(float64(id)))
 }
 
+func GenerateRoomID(serverID int) string {
+	var b [4]byte
+	_, err := rand.Read(b[:])
+	if err != nil {
+		panic(err)
+	}
+	id := int(binary.LittleEndian.Uint32(b[:]))
+	return fmt.Sprintf("%d-%d", serverID, int(math.Abs(float64(id))))
+}
+
 /*
 func ShowWaitingScreen(user shared.User, matchChan <-chan shared.User) shared.User {
 	fmt.Printf("\nOlá %s! Entrou na fila. Aguardando pareamento...\n", user.UserName)

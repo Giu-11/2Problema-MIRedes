@@ -2,13 +2,12 @@ package game
 
 import (
 	"crypto/rand"
-	"encoding/binary"
 	"encoding/json"
 	"fmt"
-	"math"
 	"math/big"
 	"sync"
 
+	"pbl/client/utils"
 	"pbl/shared"
 
 	"github.com/nats-io/nats.go"
@@ -20,7 +19,7 @@ var (
 )
 
 func CreateRoom(player1, player2 *shared.User, nc *nats.Conn, serverID int) *shared.GameRoom {
-    roomID := generateRoomID(serverID)
+    roomID := utils.GenerateRoomID(serverID)
     var turn string
     n, _ := rand.Int(rand.Reader, big.NewInt(2)) //sorteio da vez
     if n.Int64() == 0 {
@@ -45,16 +44,6 @@ func CreateRoom(player1, player2 *shared.User, nc *nats.Conn, serverID int) *sha
     SendTurnNotification(nc, room) //notifica a vez
 
     return room
-}
-
-func generateRoomID(serverID int) string {
-	var b [4]byte
-	_, err := rand.Read(b[:])
-	if err != nil {
-		panic(err)
-	}
-	id := int(binary.LittleEndian.Uint32(b[:]))
-	return fmt.Sprintf("%d-%d", serverID, int(math.Abs(float64(id))))
 }
 
 //Notificar a vez 
