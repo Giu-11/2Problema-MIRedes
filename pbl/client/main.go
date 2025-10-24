@@ -295,8 +295,10 @@ func menuCard(nc *nats.Conn, server models.ServerInfo, clientID string, user sha
 			style.Clear()
 			handleClientSeeCards(nc, server, clientID)
 		case "2":
+			style.Clear()
 			handleChangeDeck(nc, server, clientID)
 		case "3":
+			style.Clear()
 			handleClientSeeDeck(nc, server, clientID)
 		case "4":
 			sair = true
@@ -368,7 +370,9 @@ func handleClientDrawCard(nc *nats.Conn, server models.ServerInfo, clienteID str
 			return
 		}
 		style.PrintVerd("\n[SUCESSO] Você pegou uma carta!\n")
-		fmt.Printf("   -> Carta: %s %s\n", drawnData.Card.Element, drawnData.Card.Type)
+		fmt.Printf("   -> Carta:")
+		utils.PrintCartaCor(drawnData.Card)
+		fmt.Print("\n")
 	} else {
 		msg := fmt.Sprintf("\n[FALHA] Não foi possível pegar a carta: %s\n", response.Error)
 		style.PrintVerm(msg)
