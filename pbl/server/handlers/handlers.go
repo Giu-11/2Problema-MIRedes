@@ -36,7 +36,7 @@ type ClientInfo struct {
 }
 
 const (
-	heartbeatInterval = 5 * time.Second
+	heartbeatInterval = 10 * time.Second
 	disconnectTimeout = 30 * time.Second
 )
 
@@ -120,6 +120,7 @@ func HandleLogin(server *models.Server, request shared.Request, nc *nats.Conn, m
         {Id: "4", Element: "AR", Type: "NORMAL"},
     }
 
+	user.ServerID = server.ID
     //Armazena o usuário logado
     server.Users[request.ClientID] = user
     log.Printf("[%d] - Usuário '%s' conectado com ClientID '%s'", server.ID, user.UserName, request.ClientID)

@@ -534,7 +534,7 @@ func startPingLoop(nc *nats.Conn, clientID string, serverTopic string) {
 			case <-pongChan:
 				// tudo certo
 			case <-time.After(10 * time.Second):
-				fmt.Println("\n⚠️ Servidor não respondeu ao PING, tentando reconectar...")
+				fmt.Println("\nServidor não respondeu ao PING, tentando reconectar...")
 				// aqui você pode tentar reconectar ou alertar o usuário
 			}
 

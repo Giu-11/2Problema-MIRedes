@@ -7,7 +7,7 @@ import "encoding/json"
 const(
 	CommandOpenPack   = "ABRIR_PACOTE"
 	CommandClaimCard  = "RESGATAR_CARTA"
-	CommandQueueJoin  = "QUEUE_JOIN"
+	CommandQueueJoinGlobal  = "QUEUE_JOIN_GLOBAL"
 	CommandQueueLeave = "QUEUE_LEAVE"
 	CommandCreateRoom = "CREATE_ROOM"
 	CommandRemoveRoom   = "REMOVE_ROOM"

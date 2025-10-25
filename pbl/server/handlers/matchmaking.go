@@ -175,7 +175,7 @@ func LeaderJoinGlobalQueueHandler(server *models.Server) http.HandlerFunc {
 
         // Cria o comando que será aplicado no FSM via Raft
         cmd := sharedRaft.Command{
-            Type: sharedRaft.CommandQueueJoin,
+            Type: sharedRaft.CommandQueueJoinGlobal,
             Data: utils.MustMarshal(entry),
         }
 
@@ -196,7 +196,7 @@ func SendToGlobalQueue(entry shared.QueueEntry, server *models.Server) {
     // Se é líder, aplica direto via Raft
     if server.Matchmaking.IsLeader {
         cmdData, _ := json.Marshal(sharedRaft.Command{
-            Type: sharedRaft.CommandQueueJoin,
+            Type: sharedRaft.CommandQueueJoinGlobal,
             Data: utils.MustMarshal(entry),
         })
         future := server.Raft.Apply(cmdData, 5*time.Second)

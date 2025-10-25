@@ -7,9 +7,12 @@ import (
 	"path/filepath"
 	"strconv"
 	"strings"
-
+	"time"
+	
 	"pbl/server/handlers"
 	"pbl/server/models"
+	"pbl/server/fsm"
+	
 	"pbl/server/pubSub"
 	"pbl/style"
 
@@ -25,18 +28,15 @@ func StartServer(idString, port, peersEnv, natsURL string) error {
 	}
 
 	peerInfos := parsePeers(peersEnv)
-
 	server := models.NewServer(id, port, peerInfos)
 
-	//configuração do raft com Transporte HTTP
+	// Configuração Raft
 	config := raft.DefaultConfig()
 	config.LocalID = raft.ServerID(idString)
 
-	//O endereço para o transporte Raft
 	raftAddr := "0.0.0.0:" + port
 	transport := NewHTTPTransport(raft.ServerAddress(raftAddr))
 
-	//O resto da configuração do Raft (snapshots, log store, FSM)
 	dataDir := filepath.Join(".", "raft_data", idString)
 	os.MkdirAll(dataDir, 0700)
 
@@ -50,27 +50,23 @@ func StartServer(idString, port, peersEnv, natsURL string) error {
 		return err
 	}
 
-	fsm := NewFSM()
+	fsm := fsm.NewFSM()
+	server.FSM = fsm // importante: associar FSM ao servidor
 
 	ra, err := raft.NewRaft(config, fsm, logStore, logStore, snapshots, transport)
 	if err != nil {
 		return err
 	}
 	server.Raft = ra
+	fsm.Raft = ra // FSM precisa do Raft para checar se é líder
 
-	//bootstrap do cluster
+	// Bootstrap cluster
 	var configuration raft.Configuration
-	//Adiciona o próprio servidor
 	selfAddr := "server" + idString + ":" + port
 	configuration.Servers = []raft.Server{
-		{
-			ID:      raft.ServerID(idString),
-			Address: raft.ServerAddress(selfAddr),
-		},
+		{ID: raft.ServerID(idString), Address: raft.ServerAddress(selfAddr)},
 	}
-	// Adiciona os outros peers
 	for _, peer := range peerInfos {
-		// Usa o nome do serviço do Docker Compose
 		peerAddr := "server" + strconv.Itoa(peer.ID) + ":" + strconv.Itoa(8000+peer.ID)
 		configuration.Servers = append(configuration.Servers, raft.Server{
 			ID:      raft.ServerID(strconv.Itoa(peer.ID)),
@@ -79,32 +75,43 @@ func StartServer(idString, port, peersEnv, natsURL string) error {
 	}
 	ra.BootstrapCluster(configuration)
 
+	// Inicia NATS
 	nc, err := pubSub.StartNats(server)
 	if err != nil {
 		log.Fatalf("Erro NATS: %v", err)
 	}
-
-	//Para rodar em background até acontecer o match
 	server.Matchmaking.Nc = nc
+
+	// Monitora fila local e heartbeat
 	go handlers.MonitorLocalQueue(server, nc)
-	log.Printf("[Servidor %d] Monitor de matchmaking iniciado.", server.ID)
-
-
+	log.Printf("[Servidor %d] Monitor de matchmaking local iniciado.", server.ID)
 	handlers.StartHeartbeatMonitor(server, nc)
 
+	// Ticker para o líder tentar criar partidas a cada 500ms
+	go func() {
+		ticker := time.NewTicker(500 * time.Millisecond)
+		defer ticker.Stop()
+		for range ticker.C {
+			if server.Raft != nil && server.Raft.State() == raft.Leader {
+				//log.Println("[LÍDER] Verificando fila global para criar partidas...")
+				fsm.TryMatchPlayers()
+			}
+		}
+	}()
+
+	// HTTP handlers
 	http.HandleFunc("/raft", transport.HandleRaftRequest)
-
 	http.HandleFunc("/leader/draw-card", handlers.LeaderDrawCardHandler(server))
-
 	http.HandleFunc("/leader/join-global-queue", handlers.LeaderJoinGlobalQueueHandler(server))
 
-	log.Printf("[%d] - Servidor HTTP iniciado na porta %s, pronto para Raft e NATS", server.ID, server.Port)
+	log.Printf("[Servidor %d] HTTP iniciado na porta %s, pronto para Raft e NATS", server.ID, server.Port)
 	if err := http.ListenAndServe(":"+port, nil); err != nil {
 		log.Fatalf("Erro no servidor HTTP: %v", err)
 	}
 
 	return nil
 }
+
 
 func parsePeers(peersEnv string) []models.PeerInfo {
 	var peers []models.PeerInfo
