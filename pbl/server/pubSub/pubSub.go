@@ -64,7 +64,11 @@ func StartNats(server *models.Server) (*nats.Conn, error) {
 		case "CHANGE_DECK":
 			handlers.HandleChangeDeck(server, req, nc, msg)
 		
+		case "PING":
+    		handlers.HandlePing(server, req, nc, msg)
+
 		}
+		
 
 	})
 	if err != nil {

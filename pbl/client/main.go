@@ -120,7 +120,9 @@ func sendLoginRequest(nc *nats.Conn, server models.ServerInfo, clientID string) 
 
 func startGameLoop(nc *nats.Conn, server models.ServerInfo, clientID string, user shared.User) {
 	serverTopic := fmt.Sprintf("server.%d.requests", server.ID)
-	startHeartbeat(nc, clientID, serverTopic)
+	startHeartbeat(nc, clientID, serverTopic) 
+	startPingLoop(nc, clientID, serverTopic) 
+
 	
 	for {
 		option := utils.ShowMenuPrincipal()
@@ -494,6 +496,49 @@ func startHeartbeat(nc *nats.Conn, clientID, serverTopic string) {
 			data, _ := json.Marshal(req)
 			nc.Publish(serverTopic, data)
 			time.Sleep(5 * time.Second)
+		}
+	}()
+}
+
+func startClientListener(nc *nats.Conn, clientID string, pongChan chan bool) {
+	clientTopic := fmt.Sprintf("client.%s.inbox", clientID)
+	nc.Subscribe(clientTopic, func(msg *nats.Msg) {
+		var resp shared.Response
+		if err := json.Unmarshal(msg.Data, &resp); err != nil {
+			log.Println("Erro ao decodificar mensagem do servidor:", err)
+			return
+		}
+
+		if resp.Action == "PONG" {
+			pongChan <- true // sinaliza que servidor respondeu
+		}
+	})
+}
+
+func startPingLoop(nc *nats.Conn, clientID string, serverTopic string) {
+	pongChan := make(chan bool)
+	startClientListener(nc, clientID, pongChan)
+
+	go func() {
+		for {
+			// envia PING
+			req := shared.Request{
+				ClientID: clientID,
+				Action:   "PING",
+			}
+			data, _ := json.Marshal(req)
+			nc.Publish(serverTopic, data)
+
+			// aguarda PONG (timeout)
+			select {
+			case <-pongChan:
+				// tudo certo
+			case <-time.After(10 * time.Second):
+				fmt.Println("\n⚠️ Servidor não respondeu ao PING, tentando reconectar...")
+				// aqui você pode tentar reconectar ou alertar o usuário
+			}
+
+			time.Sleep(5 * time.Second) // envia PING a cada 5s
 		}
 	}()
 }
