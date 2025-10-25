@@ -5,7 +5,6 @@ import "encoding/json"
 // tipos de comando que podemos usar no log do Raft
 // const CommandRegisterUser = "REGISTER_USER"
 const(
-	CommandLoginUser  = "LOGIN"
 	CommandOpenPack   = "ABRIR_PACOTE"
 	CommandClaimCard  = "RESGATAR_CARTA"
 	CommandQueueJoin  = "QUEUE_JOIN"

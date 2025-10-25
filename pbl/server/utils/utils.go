@@ -74,3 +74,9 @@ func SendElectionMessage(peerURL string, message models.ElectionMessage) error {
 
 	return nil
 }
+
+// Helper para converter qualquer struct em json.RawMessage
+func MustMarshal(v interface{}) json.RawMessage {
+	b, _ := json.Marshal(v)
+	return json.RawMessage(b)
+}

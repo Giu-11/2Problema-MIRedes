@@ -96,6 +96,8 @@ func StartServer(idString, port, peersEnv, natsURL string) error {
 
 	http.HandleFunc("/leader/draw-card", handlers.LeaderDrawCardHandler(server))
 
+	http.HandleFunc("/leader/join-global-queue", handlers.LeaderJoinGlobalQueueHandler(server))
+
 	log.Printf("[%d] - Servidor HTTP iniciado na porta %s, pronto para Raft e NATS", server.ID, server.Port)
 	if err := http.ListenAndServe(":"+port, nil); err != nil {
 		log.Fatalf("Erro no servidor HTTP: %v", err)

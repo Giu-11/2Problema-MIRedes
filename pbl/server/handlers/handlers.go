@@ -1,23 +1,20 @@
 package handlers
 
 import (
-	"bytes"
-	"encoding/json"
-	"fmt"
 	"io"
 	"log"
-	"net/http"
-	"pbl/server/models"
-	sharedRaft "pbl/server/shared"
-	"strconv"
+	"fmt"
 	"sync"
 	"time"
-
-	//sharedRaft "pbl/server/shared"
+	"bytes"
+	"net/http"
+	"encoding/json"
+	
+	"pbl/server/models"
+	sharedRaft "pbl/server/shared"
+	"pbl/server/utils"
 	"pbl/server/game"
 	"pbl/shared"
-
-	//"github.com/hashicorp/raft"
 
 	"github.com/google/uuid"
 	"github.com/hashicorp/raft"
@@ -137,17 +134,11 @@ func HandleLogin(server *models.Server, request shared.Request, nc *nats.Conn, m
     resp := shared.Response{
         Status: "success",
         Action: "LOGIN_SUCCESS",
-        Data:   mustMarshal(user),
+        Data:   utils.MustMarshal(user),
         Server: server.ID,
     }
     data, _ := json.Marshal(resp)
     nc.Publish(msg.Reply, data)
-}
-
-// Helper para converter qualquer struct em json.RawMessage
-func mustMarshal(v interface{}) json.RawMessage {
-	b, _ := json.Marshal(v)
-	return json.RawMessage(b)
 }
 
 func HandleLogout(server *models.Server, request shared.Request, nc *nats.Conn, msg *nats.Msg) {
@@ -334,7 +325,7 @@ func SeeCardsHandler(server *models.Server, request shared.Request, nc *nats.Con
 	resp := shared.Response{
 		Status: "success",
 		Action: "SEE_CARDS",
-		Data: mustMarshal(cards),
+		Data: utils.MustMarshal(cards),
 		Server: server.ID,
 	}
 	data, _ := json.Marshal(resp)
@@ -365,7 +356,9 @@ func StartHeartbeatMonitor(server *models.Server, nc *nats.Conn) {
 						Server: server.ID,
 					}
 					data, _ := json.Marshal(response)
-					nc.Publish("server."+strconv.Itoa(server.ID)+".requests", data)
+					//nc.Publish("server."+strconv.Itoa(server.ID)+".requests", data)
+					nc.Publish(fmt.Sprintf("client.%s.inbox", id), data)
+
 				}
 			}
 			mu.Unlock()
@@ -429,7 +422,7 @@ func HandleGameMessage(server *models.Server, request shared.Request, nc *nats.C
         return
     }
     room.PlayersCards[gameMsg.From] = card
-    fmt.Println("Carta que chegou: ", card)
+    //fmt.Println("Carta que chegou: ", card)
 
     //Determina quem será o próximo
     var nextTurn string
@@ -463,8 +456,8 @@ func HandleGameMessage(server *models.Server, request shared.Request, nc *nats.C
     if len(room.PlayersCards) == 2 {
         cardP1 := room.PlayersCards[room.Player1.UserId]
         cardP2 := room.PlayersCards[room.Player2.UserId]
-        fmt.Println("Carta p1: ", cardP1)
-        fmt.Println("Carta p2: ", cardP2)
+        //fmt.Println("Carta p1: ", cardP1)
+        //fmt.Println("Carta p2: ", cardP2)
         resultP1 := game.CheckWinner(cardP1, cardP2)
         game.NotifyResult(nc, room, resultP1)
 
@@ -521,6 +514,10 @@ func respondWithError(nc *nats.Conn, msg *nats.Msg, errorMsg string) {
 	data, _ := json.Marshal(response)
 	nc.Publish(msg.Reply, data)
 }
+
+//PARTE GLOBAL 
+
+
 
 //CADASTRO --> Jogado fora por falta de tempo
 /*func HandleRegister(server *models.Server, request shared.Request, nc *nats.Conn, message *nats.Msg) {

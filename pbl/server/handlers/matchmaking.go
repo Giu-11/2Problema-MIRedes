@@ -1,14 +1,20 @@
 package handlers
 
 import (
-	"encoding/json"
 	"fmt"
 	"log"
+	"bytes"
+	"time"
+	"strings"
+	"net/http"
+	"strconv"
+	"encoding/json"
+
+	"pbl/server/utils"
 	"pbl/server/game"
 	"pbl/server/models"
-	sharedRaft "pbl/server/shared"
 	"pbl/shared"
-	"time"
+	sharedRaft "pbl/server/shared"
 
 	"github.com/hashicorp/raft"
 	"github.com/nats-io/nats.go"
@@ -66,7 +72,7 @@ func MonitorLocalQueue(server *models.Server, nc *nats.Conn) {
 			waitTime := now.Sub(entry.JoinTime)
 
 			if waitTime > 10*time.Second {
-				sendToGlobalQueue(entry, server, nc)
+				SendToGlobalQueue(entry, server)
 				server.Matchmaking.LocalQueue = append(
 					server.Matchmaking.LocalQueue[:i],
 					server.Matchmaking.LocalQueue[i+1:]...,
@@ -80,75 +86,7 @@ func MonitorLocalQueue(server *models.Server, nc *nats.Conn) {
 
 		//Faz matchmaking local
 		MatchLocalQueue(server, nc)
-
-		//tem que implementat a parte global
-
 	}
-}
-
-// Envia o jogador ao líder
-func sendToGlobalQueue(entry shared.QueueEntry, server *models.Server, nc *nats.Conn) {
-	isLeader := server.Raft.State() == raft.Leader
-	leaderAddr := string(server.Raft.Leader())
-
-	if !isLeader {
-		if leaderAddr == "" {
-			log.Println("Nenhum líder disponível no momento")
-			return
-		}
-
-		payload, _ := json.Marshal(entry)
-		req := shared.Request{
-			Action:  "JOIN_GLOBAL_QUEUE",
-			Payload: payload,
-		}
-		data, _ := json.Marshal(req)
-
-		// envia pro líder via NATS
-		err := nc.Publish("leader.queue.join", data)
-		if err != nil {
-			log.Printf("Erro ao enviar cliente %s ao líder: %v", entry.Player.UserName, err)
-		}
-	} else {
-		handleJoinGlobalQueueLeader(entry, server)
-		log.Printf("[Líder] - Cliente %s adicionado à fila global diretamente", entry.Player.UserName)
-	}
-}
-
-// Adiciona cliente na fila global do líder e replica via Raft
-/*func handleJoinGlobalQueueLeader(entry shared.QueueEntry, server *models.Server) {
-	// Protege acesso à fila global
-	server.Matchmaking.Mutex.Lock()
-	server.Matchmaking.GlobalQueue = append(server.Matchmaking.GlobalQueue, entry)
-	server.Matchmaking.Mutex.Unlock()
-
-	log.Printf("[DEBUG] Fila global atual: %v", ListGlobalQueue(server))
-	//Aplica comando Raft para replicação
-	dataEntry, _ := json.Marshal(entry)
-	cmd := sharedRaft.Command{
-		Type: "JOIN_GLOBAL_QUEUE",
-		Data: dataEntry,
-	}
-	data, _ := json.Marshal(cmd)
-	server.Raft.Apply(data, 5*time.Second) //replica o estado
-}*/
-
-func handleJoinGlobalQueueLeader(entry shared.QueueEntry, server *models.Server){
-	log.Print("testando entrar na fila global")
-	dataEntry, _ := json.Marshal(entry)
-	cmd := sharedRaft.Command{
-		Type: sharedRaft.CommandQueueJoin,
-		Data: dataEntry,
-
-	}
-	data, _ := json.Marshal(cmd)
-
-	f := server.Raft.Apply(data, 5*time.Second)
-	if err := f.Error(); err != nil{
-		log.Printf("[Líder] Erro ao aplicar comando Raft: %v", err)
-		return
-	}
-	log.Printf("[Líder] Cliente %s entrou na fila global", entry.Player.UserName)
 }
 
 func MatchLocalQueue(server *models.Server, nc *nats.Conn) {
@@ -208,7 +146,7 @@ func sendMatchNotification(server *models.Server, room *shared.GameRoom) {
 	log.Printf("[Server %d] - Turno inicial: %s", server.ID, room.Turn)
 }
 
-// listar as filas
+// listar as fila local
 func ListLocalQueue(server *models.Server) []string {
 	server.Matchmaking.Mutex.Lock()
 	defer server.Matchmaking.Mutex.Unlock()
@@ -220,13 +158,91 @@ func ListLocalQueue(server *models.Server) []string {
 	return users
 }
 
-func ListGlobalQueue(server *models.Server) []string {
-	server.Matchmaking.Mutex.Lock()
-	defer server.Matchmaking.Mutex.Unlock()
+//Parte global
+func LeaderJoinGlobalQueueHandler(server *models.Server) http.HandlerFunc {
+    return func(w http.ResponseWriter, r *http.Request) {
+        // só o líder processa
+        if server.Raft.State() != raft.Leader {
+            http.Error(w, "Não sou o líder", http.StatusBadRequest)
+            return
+        }
 
-	users := make([]string, len(server.Matchmaking.GlobalQueue))
-	for i, entry := range server.Matchmaking.GlobalQueue {
-		users[i] = entry.Player.UserName
-	}
-	return users
+        var entry shared.QueueEntry
+        if err := json.NewDecoder(r.Body).Decode(&entry); err != nil {
+            http.Error(w, "Payload inválido", http.StatusBadRequest)
+            return
+        }
+
+        // Cria o comando que será aplicado no FSM via Raft
+        cmd := sharedRaft.Command{
+            Type: sharedRaft.CommandQueueJoin,
+            Data: utils.MustMarshal(entry),
+        }
+
+        cmdBytes := utils.MustMarshal(cmd)
+
+        future := server.Raft.Apply(cmdBytes, 5*time.Second)
+        if err := future.Error(); err != nil {
+            http.Error(w, "Erro ao aplicar comando via Raft", http.StatusInternalServerError)
+            return
+        }
+
+        w.WriteHeader(http.StatusOK)
+        w.Write([]byte("Cliente adicionado à fila global"))
+    }
 }
+
+func SendToGlobalQueue(entry shared.QueueEntry, server *models.Server) {
+    // Se é líder, aplica direto via Raft
+    if server.Matchmaking.IsLeader {
+        cmdData, _ := json.Marshal(sharedRaft.Command{
+            Type: sharedRaft.CommandQueueJoin,
+            Data: utils.MustMarshal(entry),
+        })
+        future := server.Raft.Apply(cmdData, 5*time.Second)
+        if err := future.Error(); err != nil {
+            log.Printf("[Líder] Erro ao replicar fila global via Raft: %v", err)
+        }
+        return
+    }
+
+    // Caso contrário, envia para o líder via HTTP
+    leaderAddr := string(server.Raft.Leader())
+    if leaderAddr == "" {
+        log.Printf("[Follower] Nenhum líder disponível no momento")
+        return
+    }
+
+    // Pega apenas a porta do endereço Raft
+    parts := strings.Split(leaderAddr, ":")
+    if len(parts) != 2 {
+        log.Printf("[Follower] Endereço do líder inválido: %s", leaderAddr)
+        return
+    }
+    portNum, err := strconv.Atoi(parts[1])
+    if err != nil {
+        log.Printf("[Follower] Porta do líder inválida: %s", parts[1])
+        return
+    }
+
+    // Converte a porta em ID do servidor (assumindo porta = 8000 + ID)
+    leaderID := portNum - 8000
+
+    // Monta o URL do líder correto (nome do serviço Docker)
+    url := fmt.Sprintf("http://server%d:800%d/leader/join-global-queue", leaderID, leaderID)
+
+    payload := utils.MustMarshal(entry)
+    resp, err := http.Post(url, "application/json", bytes.NewBuffer(payload))
+    if err != nil {
+        log.Printf("[Follower] Erro ao enviar cliente %s para líder: %v", entry.Player.UserName, err)
+        return
+    }
+    defer resp.Body.Close()
+
+    if resp.StatusCode != http.StatusOK {
+        log.Printf("[Follower] Resposta inválida do líder: %d", resp.StatusCode)
+    } else {
+        log.Printf("[Follower] Cliente %s enviado para líder (server%d)", entry.Player.UserName, leaderID)
+    }
+}
+

@@ -1,8 +1,8 @@
 package models
 
 import (
-	"pbl/shared"
 	"sync"
+	"pbl/shared"
 	"github.com/hashicorp/raft"
 	"github.com/nats-io/nats.go"
 )
@@ -16,6 +16,7 @@ type Server struct {
 	Users   map[string]shared.User
 	Mu      sync.Mutex
 	Matchmaking Matchmaking
+
 }
 
 type Message struct {

@@ -1,16 +1,18 @@
 package main
 
 import (
-	"encoding/json"
-	"fmt"
 	"io"
+	"fmt"
 	"log"
+	"time"
+	"sync"
+	"math/big"
+	"crypto/rand"
+	"encoding/json"
+	
 	"pbl/server/cards"
 	sharedRaft "pbl/server/shared"
 	"pbl/shared"
-	"sync"
-	"crypto/rand"
-	"math/big"
 
 	"github.com/hashicorp/raft"
 )
@@ -24,6 +26,8 @@ type FSM struct {
 	//Para a parte global
 	globalQueue []shared.QueueEntry
 	globalRooms map[string]*shared.GameRoom
+
+	Raft *raft.Raft
 }
 
 func NewFSM() *FSM {
@@ -83,16 +87,21 @@ func (fsm *FSM) Apply(logEntry *raft.Log) interface{} {
 
 	case sharedRaft.CommandQueueJoin:
 		var entry shared.QueueEntry
-		if err := json.Unmarshal(cmd.Data, &entry); err != nil{
+		if err := json.Unmarshal(cmd.Data, &entry); err != nil {
 			log.Printf("[FSM] Erro ao decodificar dados da fila global %v", err)
 			return err
-		}	
+		}
 		fsm.globalQueue = append(fsm.globalQueue, entry)
 		log.Printf("[FSM] Usuário %s adicionado à fila global", entry.Player.UserName)
+		//Mostra a fila global atual
+		names := make([]string, len(fsm.globalQueue))
+		for i, e := range fsm.globalQueue { names[i] = e.Player.UserName }
+		log.Printf("[FSM] Fila global atual: %v", names)
 
 		fsm.tryMatchPlayers()
-
 		return nil
+
+
 
 	case sharedRaft.CommandCreateRoom:
 		var room shared.GameRoom
@@ -184,28 +193,56 @@ func (s *fsmSnapshot) Release() {
 }
 
 func (fsm *FSM) tryMatchPlayers() {
-	for len(fsm.globalQueue) >= 2 {
-		player1 := fsm.globalQueue[0].Player
-		player2 := fsm.globalQueue[1].Player
+    // vamos construir uma lista de comandos a aplicar fora do lock
+    var cmds [][]byte
 
-		var turn string
-		n, _ := rand.Int(rand.Reader, big.NewInt(2)) //sorteio da vez
-		if n.Int64() == 0 {
-			turn = player1.UserId
-		} else {
-			turn = player2.UserId
-		}
+    for len(fsm.globalQueue) >= 2 {
+        player1 := fsm.globalQueue[0].Player
+        player2 := fsm.globalQueue[1].Player
 
-		room := &shared.GameRoom{
-			ID:      fmt.Sprintf("global-%s-vs-%s", player1.UserName, player2.UserName),
-			Player1: &player1,
-			Player2: &player2,
-			Turn: turn,
-		}
+        // remove da fila
+        fsm.globalQueue = fsm.globalQueue[2:]
 
-		fsm.globalRooms[room.ID] = room
-		fsm.globalQueue = fsm.globalQueue[2:]
+        // escolhe quem começa
+        var turn string
+        n, _ := rand.Int(rand.Reader, big.NewInt(2))
+        if n.Int64() == 0 {
+            turn = player1.UserId
+        } else {
+            turn = player2.UserId
+        }
 
-		log.Printf("[FSM] Nova sala global criada: %s (%s vs %s)", room.ID, player1.UserName, player2.UserName)
-	}
+        room := shared.GameRoom{
+            ID:      fmt.Sprintf("global-%s-vs-%s", player1.UserName, player2.UserName),
+            Player1: &player1,
+            Player2: &player2,
+            Turn:    turn,
+        }
+
+        //cria comando CREATE_ROOM 
+        roomData, _ := json.Marshal(room)
+        cmd := sharedRaft.Command{
+            Type: sharedRaft.CommandCreateRoom,
+            Data: roomData,
+        }
+        cmdBytes, _ := json.Marshal(cmd)
+
+        cmds = append(cmds, cmdBytes)
+
+        log.Printf("[FSM] Preparando criação da sala global: %s (%s vs %s)", room.ID, player1.UserName, player2.UserName)
+    }
+    if len(cmds) > 0 && fsm.Raft != nil {
+        for _, cb := range cmds {
+            cb := cb // captura
+            go func() {
+                future := fsm.Raft.Apply(cb, 5*time.Second)
+                if err := future.Error(); err != nil {
+                    log.Printf("[FSM] Erro ao aplicar CREATE_ROOM via Raft: %v", err)
+                    return
+                }
+                // opcional: registrar que a sala foi replicada
+                log.Printf("[FSM] CREATE_ROOM replicado com sucesso")
+            }()
+        }
+    }
 }
