@@ -1,19 +1,22 @@
+version: "3.9"
+
 services:
-  #NATS 1
+  # ===== NATS =====
   nats1:
     image: nats:latest
     container_name: nats1
     ports:
-      - "4223:4222"  # porta NATS
-      - "8223:8222"  # porta web
+      - "4223:4222"  # porta NATS para host
+      - "8223:8222"  # porta Web para host
     command: >
+      --server_name nats1
       --cluster_name pbl-cluster
       --cluster nats://0.0.0.0:6222
+      --cluster_advertise nats1:6222
       --routes nats://nats2:6222,nats://nats3:6222
     networks:
       - pbl-network
 
-  #NATS 2
   nats2:
     image: nats:latest
     container_name: nats2
@@ -21,13 +24,14 @@ services:
       - "4224:4222"
       - "8224:8222"
     command: >
+      --server_name nats2
       --cluster_name pbl-cluster
       --cluster nats://0.0.0.0:6222
+      --cluster_advertise nats2:6222
       --routes nats://nats1:6222,nats://nats3:6222
     networks:
       - pbl-network
 
-  #NATS 3
   nats3:
     image: nats:latest
     container_name: nats3
@@ -35,13 +39,15 @@ services:
       - "4225:4222"
       - "8225:8222"
     command: >
+      --server_name nats3
       --cluster_name pbl-cluster
       --cluster nats://0.0.0.0:6222
+      --cluster_advertise nats3:6222
       --routes nats://nats1:6222,nats://nats2:6222
     networks:
       - pbl-network
 
-  #Servidor 1
+  # ===== Servidores =====
   server1:
     build:
       context: .
@@ -53,13 +59,12 @@ services:
       - ID=1
       - PORT=8001
       - PEERS=2=http://server2:8002,3=http://server3:8003
-      - NATS_URL=nats://nats1:4222
+      - NATS_URL=nats://nats1:4222  # conecta ao NATS1 dentro da rede Docker
     networks:
       - pbl-network
     depends_on:
       - nats1
 
-  #Servidor 2
   server2:
     build:
       context: .
@@ -77,7 +82,6 @@ services:
     depends_on:
       - nats2
 
-  #Servidor 3
   server3:
     build:
       context: .

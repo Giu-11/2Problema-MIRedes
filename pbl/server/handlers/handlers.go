@@ -1,19 +1,21 @@
 package handlers
 
 import (
-	"io"
-	"log"
+	//"io"
+	"bytes"
+	"encoding/json"
 	"fmt"
+	"log"
+	"net/http"
 	"sync"
 	"time"
-	"bytes"
-	"net/http"
-	"encoding/json"
-	
+	"strings"
+
+	"pbl/server/game"
 	"pbl/server/models"
+
 	sharedRaft "pbl/server/shared"
 	"pbl/server/utils"
-	"pbl/server/game"
 	"pbl/shared"
 
 	"github.com/google/uuid"
@@ -21,36 +23,27 @@ import (
 	"github.com/nats-io/nats.go"
 )
 
+const (
+	Active ClientState = iota
+	WaitingReconnection
+)
+
+type ClientState int
 type ClientInfo struct {
 	ClientID string
 	LastSeen time.Time
+	State ClientState
 }
+
+const (
+	heartbeatInterval = 5 * time.Second
+	disconnectTimeout = 30 * time.Second
+)
 
 var (
 	activeClients = make(map[string]*ClientInfo)
 	mu            = sync.Mutex{}
 )
-
-func PingHandler(serverID int) http.HandlerFunc {
-	return func(w http.ResponseWriter, r *http.Request) {
-		body, _ := io.ReadAll(r.Body)
-		defer r.Body.Close()
-
-		var msg models.Message
-		if len(body) > 0 {
-			json.Unmarshal(body, &msg)
-		}
-
-		//log.Printf("[%s] Recebi PING de %s", serverID, msg.From)
-
-		resp := models.Message{
-			From: serverID,
-			Msg:  "PONG",
-		}
-		w.Header().Set("Content-Type", "application/json")
-		json.NewEncoder(w).Encode(resp)
-	}
-}
 
 func HandleChooseServer(server *models.Server, request shared.Request, nc *nats.Conn, message *nats.Msg) {
 	// Pega o server_id do payload do cliente (mesmo que seja esse servidor)
@@ -168,7 +161,8 @@ func HandleLogout(server *models.Server, request shared.Request, nc *nats.Conn, 
 	nc.Publish(msg.Reply, data)
 }
 
-func HandleDrawCard(server *models.Server, request shared.Request, nc *nats.Conn, message *nats.Msg) {
+//Para fora do compose
+/*func HandleDrawCard(server *models.Server, request shared.Request, nc *nats.Conn, message *nats.Msg) {
 	if server.Raft.State() == raft.Leader {
 		// Se já somos o líder, processamos, salvamos localmente e respondemos.
 		result, err := processDrawCardRequest(server, request.ClientID)
@@ -183,6 +177,8 @@ func HandleDrawCard(server *models.Server, request shared.Request, nc *nats.Conn
 
 	// Se não somos o líder, descobrimos quem é e encaminhamos via HTTP REST.
 	leaderAddr := server.Raft.Leader()
+	log.Printf("\033[31mEDENREÇO DO RADT:%s\033[0m", leaderAddr)
+	
 	if leaderAddr == "" {
 		respondWithError(nc, message, "Líder não disponível no momento, tente novamente.")
 		return
@@ -220,7 +216,81 @@ func HandleDrawCard(server *models.Server, request shared.Request, nc *nats.Conn
 
 	finalResponseBytes, _ := json.Marshal(leaderResponse)
 	nc.Publish(message.Reply, finalResponseBytes)
+}*/
+
+func HandleDrawCard(server *models.Server, request shared.Request, nc *nats.Conn, message *nats.Msg) {
+	if server.Raft.State() == raft.Leader {
+		// Se já somos o líder, processamos, salvamos localmente e respondemos.
+		result, err := processDrawCardRequest(server, request.ClientID)
+		if err != nil {
+			respondWithError(nc, message, err.Error())
+			return
+		}
+		saveCardToLocalUser(server, request.ClientID, result)
+		respondWithSuccess(nc, message, result)
+		return
+	}
+
+	// Se não somos o líder, descobrimos quem é e encaminhamos via HTTP REST.
+	leaderAddr := string(server.Raft.Leader())
+	if leaderAddr == "" {
+		respondWithError(nc, message, "Líder não disponível no momento, tente novamente.")
+		return
+	}
+
+	log.Printf("[%d] Não sou o líder. Endereço do líder retornado pelo Raft: %s", server.ID, leaderAddr)
+	
+	//Como no raft tá vindo 0.0.0.0 no inicio, aqui eu faço uma "conversão" --> para funcionar no compose
+	parts := strings.Split(leaderAddr, ":")
+	host := parts[0]
+	port := parts[1]
+
+	// Substitui 0.0.0.0 pelo container correto do líder
+	if host == "0.0.0.0" {
+		switch port {
+		case "8001":
+			host = "server1"
+		case "8002":
+			host = "server2"
+		case "8003":
+			host = "server3"
+		}
+	}
+
+	leaderURL := fmt.Sprintf("http://%s:%s/leader/draw-card", host, port)
+
+	// Cria payload para o líder
+	payload := map[string]string{"clientID": request.ClientID}
+	jsonPayload, _ := json.Marshal(payload)
+
+	// Faz a requisição HTTP POST para o líder
+	resp, err := http.Post(leaderURL, "application/json", bytes.NewBuffer(jsonPayload))
+	if err != nil {
+		respondWithError(nc, message, fmt.Sprintf("Falha ao se comunicar com o líder: %v", err))
+		return
+	}
+	defer resp.Body.Close()
+
+	// Repassa a resposta do líder para o cliente via NATS
+	var leaderResponse shared.Response
+	if err := json.NewDecoder(resp.Body).Decode(&leaderResponse); err != nil {
+		respondWithError(nc, message, "Resposta inválida do líder.")
+		return
+	}
+
+	if leaderResponse.Status == "success" {
+		var drawnData shared.CardDrawnData
+		if err := json.Unmarshal(leaderResponse.Data, &drawnData); err != nil {
+			respondWithError(nc, message, "Dados da carta inválidos na resposta do líder.")
+			return
+		}
+		saveCardToLocalUser(server, request.ClientID, drawnData.Card)
+	}
+
+	finalResponseBytes, _ := json.Marshal(leaderResponse)
+	nc.Publish(message.Reply, finalResponseBytes)
 }
+
 
 func LeaderDrawCardHandler(server *models.Server) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
@@ -332,39 +402,6 @@ func SeeCardsHandler(server *models.Server, request shared.Request, nc *nats.Con
 	nc.Publish(message.Reply, data)
 }
 
-// Heatbeat para o clinete
-func StartHeartbeatMonitor(server *models.Server, nc *nats.Conn) {
-	go func() {
-		for {
-			time.Sleep(5 * time.Second)
-			now := time.Now()
-
-			mu.Lock()
-			for id, c := range activeClients {
-				if now.Sub(c.LastSeen) > 15*time.Second {
-					log.Printf("Cliente '%s' inativo. Removendo...", id)
-					delete(activeClients, id)
-
-					//remove do mapa de usuários do servidor
-					server.Mu.Lock()
-					delete(server.Users, id)
-					server.Mu.Unlock()
-
-					response := shared.Response{
-						Status: "success",
-						Action: "LOGOUT_SUCCESS",
-						Server: server.ID,
-					}
-					data, _ := json.Marshal(response)
-					//nc.Publish("server."+strconv.Itoa(server.ID)+".requests", data)
-					nc.Publish(fmt.Sprintf("client.%s.inbox", id), data)
-
-				}
-			}
-			mu.Unlock()
-		}
-	}()
-}
 
 // Função que trata a desconexão de forma genérica
 func DisconnectClient(server *models.Server, clientID string) {
@@ -379,19 +416,6 @@ func DisconnectClient(server *models.Server, clientID string) {
 	log.Printf("Cliente '%s' caiu ou ficou inativo. Removido do servidor.", clientID)
 }
 
-// Handler para processar os heartbeats recebidos via NATS
-func HandleHeartbeat(serverID int, request shared.Request, nc *nats.Conn, msg *nats.Msg) {
-	clientID := request.ClientID
-	mu.Lock()
-	activeClients[clientID] = &ClientInfo{
-		ClientID: clientID,
-		LastSeen: time.Now(),
-	}
-	mu.Unlock()
-
-	//log.Printf("[%d] - Heartbeat recebido de %s", serverID, clientID)
-
-}
 
 func HandleGameMessage(server *models.Server, request shared.Request, nc *nats.Conn, msg *nats.Msg) {
     var gameMsg shared.GameMessage
@@ -515,8 +539,166 @@ func respondWithError(nc *nats.Conn, msg *nats.Msg, errorMsg string) {
 	nc.Publish(msg.Reply, data)
 }
 
-//PARTE GLOBAL 
+//PARTE GLOBAL
+var ActiveGames = make(map[string]*shared.GameRoom)
 
+// Handler para iniciar partidas
+func StartGameHandler(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodPost {
+		http.Error(w, "Método não permitido", http.StatusMethodNotAllowed)
+		return
+	}
+
+	var room shared.GameRoom
+	if err := json.NewDecoder(r.Body).Decode(&room); err != nil {
+		log.Printf("[StartGameHandler] Erro ao decodificar GameRoom: %v", err)
+		http.Error(w, "Erro ao decodificar JSON", http.StatusBadRequest)
+		return
+	}
+
+	// Salva a partida ativa no servidor
+	ActiveGames[room.ID] = &room
+	log.Printf("[StartGameHandler] Nova partida recebida: %s (%s vs %s). Turno: %s",
+		room.ID, room.Player1.UserName, room.Player2.UserName, room.Turn)
+
+	// Aqui você pode inicializar timers, preparar decks, ou iniciar a lógica do jogo
+	// Exemplo:
+	// go StartMatch(room.ID)
+
+	// Responde para confirmar que recebeu
+	w.Header().Set("Content-Type", "application/json")
+	resp := map[string]string{
+		"status":  "success",
+		"message": "Partida iniciada no host",
+		"roomID":  room.ID,
+	}
+	json.NewEncoder(w).Encode(resp)
+}
+
+
+func StartHeartbeatMonitor(server *models.Server, nc *nats.Conn) {
+	go func() {
+		for {
+			time.Sleep(heartbeatInterval)
+			now := time.Now()
+
+			mu.Lock()
+			for id, c := range activeClients {
+				// Se passou muito tempo desde o último pong
+				if now.Sub(c.LastSeen) > disconnectTimeout {
+					log.Printf("Cliente '%s' inativo por %v. Desconectando...", id, now.Sub(c.LastSeen))
+					DisconnectClient(server, id)
+					delete(activeClients, id)
+					continue
+				}
+
+				// Se estiver em estado ativo, envia ping
+				if c.State == Active {
+					c.State = WaitingReconnection
+					nc.Publish(fmt.Sprintf("client.%s.ping", id), []byte("ping"))
+				}
+			}
+			mu.Unlock()
+		}
+	}()
+}
+
+// Chamado quando o cliente responde ao ping (pong)
+func HandlePong(serverID int, clientID string) {
+	mu.Lock()
+	defer mu.Unlock()
+	if c, ok := activeClients[clientID]; ok {
+		c.LastSeen = time.Now()
+		c.State = Active
+	}
+}
+
+func HandlePing(server *models.Server, req shared.Request, nc *nats.Conn, msg *nats.Msg) {
+	clientID := req.ClientID
+	// Atualiza último ping
+	mu.Lock()
+	if c, ok := activeClients[clientID]; ok {
+		c.LastSeen = time.Now()
+		c.State = Active
+	}
+	mu.Unlock()
+
+	// Responde com PONG
+	response := shared.Response{
+		Status: "success",
+		Action: "PONG",
+	}
+	respData, _ := json.Marshal(response)
+	clientTopic := fmt.Sprintf("client.%s.inbox", clientID)
+	nc.Publish(clientTopic, respData)
+}
+
+
+func HandleHeartbeat(serverID int, request shared.Request, nc *nats.Conn, msg *nats.Msg) {
+	clientID := request.ClientID
+
+	mu.Lock()
+	if c, ok := activeClients[clientID]; ok {
+		c.LastSeen = time.Now()
+		c.State = Active
+	} else {
+		activeClients[clientID] = &ClientInfo{
+			ClientID: clientID,
+			LastSeen: time.Now(),
+			State:    Active,
+		}
+	}
+	mu.Unlock()
+}
+
+/*// Heatbeat para o clinete
+func StartHeartbeatMonitor(server *models.Server, nc *nats.Conn) {
+	go func() {
+		for {
+			time.Sleep(5 * time.Second)
+			now := time.Now()
+
+			mu.Lock()
+			for id, c := range activeClients {
+				if now.Sub(c.LastSeen) > 15*time.Second {
+					log.Printf("Cliente '%s' inativo. Removendo...", id)
+					delete(activeClients, id)
+
+					//remove do mapa de usuários do servidor
+					server.Mu.Lock()
+					delete(server.Users, id)
+					server.Mu.Unlock()
+
+					response := shared.Response{
+						Status: "success",
+						Action: "LOGOUT_SUCCESS",
+						Server: server.ID,
+					}
+					data, _ := json.Marshal(response)
+					//nc.Publish("server."+strconv.Itoa(server.ID)+".requests", data)
+					nc.Publish(fmt.Sprintf("client.%s.inbox", id), data)
+
+				}
+			}
+			mu.Unlock()
+		}
+	}()
+}
+*/
+
+/*// Handler para processar os heartbeats recebidos via NATS
+func HandleHeartbeat(serverID int, request shared.Request, nc *nats.Conn, msg *nats.Msg) {
+	clientID := request.ClientID
+	mu.Lock()
+	activeClients[clientID] = &ClientInfo{
+		ClientID: clientID,
+		LastSeen: time.Now(),
+	}
+	mu.Unlock()
+
+	//log.Printf("[%d] - Heartbeat recebido de %s", serverID, clientID)
+
+}*/
 
 
 //CADASTRO --> Jogado fora por falta de tempo

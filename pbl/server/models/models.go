@@ -16,7 +16,6 @@ type Server struct {
 	Users   map[string]shared.User
 	Mu      sync.Mutex
 	Matchmaking Matchmaking
-
 }
 
 type Message struct {
