@@ -10,7 +10,7 @@ const(
 	CommandQueueJoin  = "QUEUE_JOIN"
 	CommandQueueLeave = "QUEUE_LEAVE"
 	CommandCreateRoom = "CREATE_ROOM"
-	CommandMatchPlayers  = "MATCH_PLAYERS"
+	CommandRemoveRoom   = "REMOVE_ROOM"
 )
 
 // command representa uma ação a ser aplicada na maquina de estados
