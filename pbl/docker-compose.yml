@@ -60,6 +60,7 @@ services:
       - PORT=8001
       - PEERS=2=http://server2:8002,3=http://server3:8003
       - NATS_URL=nats://nats1:4222  # conecta ao NATS1 dentro da rede Docker
+      - RAFT_ADVERTISE_ADDR=server1:8001
     networks:
       - pbl-network
     depends_on:
@@ -77,6 +78,7 @@ services:
       - PORT=8002
       - PEERS=1=http://server1:8001,3=http://server3:8003
       - NATS_URL=nats://nats2:4222
+      - RAFT_ADVERTISE_ADDR=server2:8002
     networks:
       - pbl-network
     depends_on:
@@ -94,6 +96,7 @@ services:
       - PORT=8003
       - PEERS=1=http://server1:8001,2=http://server2:8002
       - NATS_URL=nats://nats3:4222
+      - RAFT_ADVERTISE_ADDR=server3:8003
     networks:
       - pbl-network
     depends_on:

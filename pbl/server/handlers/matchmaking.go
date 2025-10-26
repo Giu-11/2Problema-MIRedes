@@ -1,20 +1,18 @@
 package handlers
 
 import (
+	"bytes"
+	"encoding/json"
 	"fmt"
 	"log"
-	"bytes"
-	"time"
-	"strings"
 	"net/http"
-	"strconv"
-	"encoding/json"
+	"time"
 
-	"pbl/server/utils"
 	"pbl/server/game"
 	"pbl/server/models"
-	"pbl/shared"
 	sharedRaft "pbl/server/shared"
+	"pbl/server/utils"
+	"pbl/shared"
 
 	"github.com/hashicorp/raft"
 	"github.com/nats-io/nats.go"
@@ -214,7 +212,7 @@ func SendToGlobalQueue(entry shared.QueueEntry, server *models.Server) {
     }
 
     // Pega apenas a porta do endereço Raft
-    parts := strings.Split(leaderAddr, ":")
+    /*parts := strings.Split(leaderAddr, ":")
     if len(parts) != 2 {
         log.Printf("[Follower] Endereço do líder inválido: %s", leaderAddr)
         return
@@ -229,7 +227,9 @@ func SendToGlobalQueue(entry shared.QueueEntry, server *models.Server) {
     leaderID := portNum - 8000
 
     // Monta o URL do líder correto (nome do serviço Docker)
-    url := fmt.Sprintf("http://server%d:800%d/leader/join-global-queue", leaderID, leaderID)
+	//url := fmt.Sprintf("http://%s/leader/join-global-queue", leaderAddr)
+    url := fmt.Sprintf("http://server%d:800%d/leader/join-global-queue", leaderID, leaderID)*/
+	url := fmt.Sprintf("http://%s/leader/join-global-queue", leaderAddr)
 
     payload := utils.MustMarshal(entry)
     resp, err := http.Post(url, "application/json", bytes.NewBuffer(payload))
@@ -242,7 +242,7 @@ func SendToGlobalQueue(entry shared.QueueEntry, server *models.Server) {
     if resp.StatusCode != http.StatusOK {
         log.Printf("[Follower] Resposta inválida do líder: %d", resp.StatusCode)
     } else {
-        log.Printf("[Follower] Cliente %s enviado para líder (server%d)", entry.Player.UserName, leaderID)
+        log.Printf("[Follower] Cliente %s enviado para líder (server%d)", entry.Player.UserName, leaderAddr)
     }
 }
 

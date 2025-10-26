@@ -67,6 +67,7 @@ run-pair1:
 	PORT=8001 \
 	PEERS="2=http://localhost:8002,3=http://localhost:8003" \
 	NATS_URL="nats://localhost:4223" \
+	RAFT_ADVERTISE_ADDR="localhost:8001" \
 	RAFT_PEER_1="localhost:8001" \
 	RAFT_PEER_2="localhost:8002" \
 	RAFT_PEER_3="localhost:8003" \
@@ -81,6 +82,7 @@ run-pair2:
 	PORT=8002 \
 	PEERS="1=http://localhost:8001,3=http://localhost:8003" \
 	NATS_URL="nats://localhost:4224" \
+	RAFT_ADVERTISE_ADDR="localhost:8002" \
 	RAFT_PEER_1="localhost:8001" \
 	RAFT_PEER_2="localhost:8002" \
 	RAFT_PEER_3="localhost:8003" \
@@ -95,6 +97,7 @@ run-pair3:
 	PORT=8003 \
 	PEERS="1=http://localhost:8001,2=http://localhost:8002" \
 	NATS_URL="nats://localhost:4225" \
+	RAFT_ADVERTISE_ADDR="localhost:8003" \
 	RAFT_PEER_1="localhost:8001" \
 	RAFT_PEER_2="localhost:8002" \
 	RAFT_PEER_3="localhost:8003" \

@@ -2,6 +2,7 @@ package handlers
 
 import (
 	//"io"
+
 	"bytes"
 	"encoding/json"
 	"fmt"
@@ -9,12 +10,11 @@ import (
 	"net/http"
 	"sync"
 	"time"
-	"strings"
 
 	"pbl/server/game"
 	"pbl/server/models"
-
 	sharedRaft "pbl/server/shared"
+
 	"pbl/server/utils"
 	"pbl/shared"
 
@@ -242,7 +242,8 @@ func HandleDrawCard(server *models.Server, request shared.Request, nc *nats.Conn
 	log.Printf("[%d] Não sou o líder. Endereço do líder retornado pelo Raft: %s", server.ID, leaderAddr)
 	
 	//Como no raft tá vindo 0.0.0.0 no inicio, aqui eu faço uma "conversão" --> para funcionar no compose
-	parts := strings.Split(leaderAddr, ":")
+	fmt.Printf("\n\t\t lider: %s!\n", leaderAddr)
+	/*parts := strings.Split(leaderAddr, ":")
 	host := parts[0]
 	port := parts[1]
 
@@ -258,7 +259,8 @@ func HandleDrawCard(server *models.Server, request shared.Request, nc *nats.Conn
 		}
 	}
 
-	leaderURL := fmt.Sprintf("http://%s:%s/leader/draw-card", host, port)
+	leaderURL := fmt.Sprintf("http://%s:%s/leader/draw-card", host, port)*/
+	leaderURL := fmt.Sprintf("http://%s/leader/draw-card", leaderAddr)
 
 	// Cria payload para o líder
 	payload := map[string]string{"clientID": request.ClientID}

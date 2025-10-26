@@ -1,15 +1,15 @@
 package main
 
 import (
-	"os"
-	"log"
-	"time"
 	"bytes"
-	"strings"
-	"strconv"
-	"net/http"
 	"encoding/json"
+	"log"
+	"net/http"
+	"os"
 	"path/filepath"
+	"strconv"
+	"strings"
+	"time"
 
 	"pbl/server/fsm"
 	"pbl/server/handlers"
@@ -37,9 +37,17 @@ func StartServer(idString, port, peersEnv, natsURL string) error {
 	config := raft.DefaultConfig()
 	config.LocalID = raft.ServerID(idString)
 
-	raftAddr := "0.0.0.0:" + port
-	transport := NewHTTPTransport(raft.ServerAddress(raftAddr))
+	raftAdvAddr := os.Getenv("RAFT_ADVERTISE_ADDR")
+		if raftAdvAddr == "" {
+			// Fallback para localhost se não estiver no Docker (para rodar local)
+			log.Printf("RAFT_ADVERTISE_ADDR não definida, usando fallback para localhost:%s", port)
+			raftAdvAddr = "localhost:" + port
+		}
 
+	//raftListenAddr := "0.0.0.0:" + port
+	transport := NewHTTPTransport(raft.ServerAddress(raftAdvAddr))
+
+	
 	dataDir := filepath.Join(".", "raft_data", idString)
 	os.MkdirAll(dataDir, 0700)
 
@@ -63,17 +71,25 @@ func StartServer(idString, port, peersEnv, natsURL string) error {
 	server.Raft = ra
 	fsm.Raft = ra // FSM precisa do Raft para checar se é líder
 
+
 	// Bootstrap cluster
 	var configuration raft.Configuration
-	selfAddr := "server" + idString + ":" + port
+	
+	// CORRIGIDO: Use o endereço de anúncio!
+	selfAddr := raftAdvAddr 
 	configuration.Servers = []raft.Server{
 		{ID: raft.ServerID(idString), Address: raft.ServerAddress(selfAddr)},
 	}
+	// Bootstrap cluster
 	for _, peer := range peerInfos {
-		peerAddr := "server" + strconv.Itoa(peer.ID) + ":" + strconv.Itoa(8000+peer.ID)
+		// peer.URL vem como "http://server2:8002"
+		// Precisamos apenas de "server2:8002"
+		raftPeerAddr := strings.TrimPrefix(peer.URL, "http://")
+		raftPeerAddr = strings.TrimPrefix(raftPeerAddr, "https://") 
+		
 		configuration.Servers = append(configuration.Servers, raft.Server{
 			ID:      raft.ServerID(strconv.Itoa(peer.ID)),
-			Address: raft.ServerAddress(peerAddr),
+			Address: raft.ServerAddress(raftPeerAddr), // <--- CORRIGIDO
 		})
 	}
 	ra.BootstrapCluster(configuration)
