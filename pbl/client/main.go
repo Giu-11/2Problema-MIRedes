@@ -132,6 +132,12 @@ func startGameLoop(nc *nats.Conn, server models.ServerInfo, clientID string, use
 			matchChan := make(chan game.MatchInfo, 1)
 			
 			sub := game.StartGameListener(nc, clientID, matchChan, user)
+			subGlobal := game.HandleStartGlobalMatchListener(server.ID, nc, clientID, matchChan)
+			defer func() {
+				if subGlobal != nil {
+					subGlobal.Unsubscribe()
+				}
+			}()
 			
 			success := game.JoinQueue(nc, server, &user, clientTopic)
 			if !success {

@@ -576,7 +576,6 @@ func StartGameHandler(w http.ResponseWriter, r *http.Request) {
 	json.NewEncoder(w).Encode(resp)
 }
 
-
 func StartHeartbeatMonitor(server *models.Server, nc *nats.Conn) {
 	go func() {
 		for {

@@ -11,7 +11,7 @@ import (
 	"time"
 
 	"pbl/server/cards"
-	"pbl/server/game"
+
 	sharedRaft "pbl/server/shared"
 	"pbl/shared"
 
@@ -28,6 +28,7 @@ type FSM struct {
 	globalQueue []shared.QueueEntry
 	globalRooms map[string]*shared.GameRoom
 
+	CreatedRooms chan *shared.GameRoom
 	Raft *raft.Raft
 }
 
@@ -37,6 +38,7 @@ func NewFSM() *FSM {
 		cardStock:    cards.GerarEstoque(),
 		pendingCards: make(map[string]shared.Card),
 		globalRooms:  make(map[string]*shared.GameRoom),
+		CreatedRooms: make(chan *shared.GameRoom, 10),
 	}
 }
 
@@ -143,7 +145,16 @@ func (fsm *FSM) Apply(logEntry *raft.Log) interface{} {
 		}
 		fsm.globalRooms[room.ID] = &room
 		log.Printf("[FSM] Sala criada: %s (%s vs %s)", room.ID, room.Player1.UserName, room.Player2.UserName)
+
+		//notifica internamente (sem rede)
+		select {
+		case fsm.CreatedRooms <- &room:
+		default:
+			log.Println("[FSM] Aviso: fila de createdRooms cheia, descartando notificação.")
+		}
+
 		return nil
+
 
 	case sharedRaft.CommandQueueLeave:
 		var entry shared.QueueEntry
@@ -268,8 +279,6 @@ func (fsm *FSM) TryMatchPlayers() {
 			log.Printf("[FSM] Sala global criada: %s (%s vs %s) - Host: server%d",
 				room.ID, room.Player1.UserName, room.Player2.UserName, room.ServerID)
 
-			// Notifica servidor host
-			game.NotifyGlobalMatch(&room)
 		}(cmdBytes, room)
 
 		log.Printf("[FSM] Preparando sala global: %s (%s vs %s) - Host: server%d",

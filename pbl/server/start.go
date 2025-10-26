@@ -1,19 +1,23 @@
 package main
 
 import (
-	"log"
-	"net/http"
 	"os"
-	"path/filepath"
-	"strconv"
-	"strings"
+	"fmt"
+	"log"
 	"time"
-	
+	"bytes"
+	"strings"
+	"strconv"
+	"net/http"
+	"encoding/json"
+	"path/filepath"
+
+	"pbl/server/fsm"
 	"pbl/server/handlers"
 	"pbl/server/models"
-	"pbl/server/fsm"
-	
 	"pbl/server/pubSub"
+	"pbl/server/utils"
+	"pbl/shared"
 	"pbl/style"
 
 	"github.com/hashicorp/raft"
@@ -99,10 +103,36 @@ func StartServer(idString, port, peersEnv, natsURL string) error {
 		}
 	}()
 
+	// Goroutine para escutar salas criadas e notificar outros servidores
+	go func() {
+		for room := range server.FSM.CreatedRooms {
+			// Apenas o líder envia notificações
+			if server.FSM.Raft != nil && server.FSM.Raft.State() == raft.Leader {
+				go notifyServersAboutMatch(room, server)
+				go notifyClients(*room, server)
+			}
+		}
+	}()
+
+
+
+
 	// HTTP handlers
 	http.HandleFunc("/raft", transport.HandleRaftRequest)
 	http.HandleFunc("/leader/draw-card", handlers.LeaderDrawCardHandler(server))
 	http.HandleFunc("/leader/join-global-queue", handlers.LeaderJoinGlobalQueueHandler(server))
+	
+	http.HandleFunc("/notify-match", func(w http.ResponseWriter, r *http.Request) {
+    var room shared.GameRoom
+    if err := json.NewDecoder(r.Body).Decode(&room); err != nil {
+        http.Error(w, "Invalid payload", http.StatusBadRequest)
+        return
+    }
+    // Aqui você pode enviar a notificação para os clientes via NATS
+    notifyClients(room, server)
+    w.WriteHeader(http.StatusOK)
+})
+
 
 	log.Printf("[Servidor %d] HTTP iniciado na porta %s, pronto para Raft e NATS", server.ID, server.Port)
 	if err := http.ListenAndServe(":"+port, nil); err != nil {
@@ -127,4 +157,43 @@ func parsePeers(peersEnv string) []models.PeerInfo {
 		}
 	}
 	return peers
+}
+
+func notifyServersAboutMatch(room *shared.GameRoom, server *models.Server) {
+    payload, err := json.Marshal(room)
+    if err != nil {
+        log.Printf("[Notify] Erro ao serializar sala: %v", err)
+        return
+    }
+
+    for _, peer := range server.Peers {
+        url := peer.URL + "/notify-match"
+        go func(url string) {
+            resp, err := http.Post(url, "application/json", bytes.NewBuffer(payload))
+            if err != nil {
+                log.Printf("[Notify] Erro ao enviar para %s: %v", url, err)
+                return
+            }
+            resp.Body.Close()
+            log.Printf("[Notify] Notificação enviada para %s", url)
+        }(url)
+    }
+}
+
+func notifyClients(room shared.GameRoom, server *models.Server) {
+    // Notifica player 1
+    topic1 := fmt.Sprintf("server.%d.client.%s", room.Server1ID, room.Player1.UserId)
+    msg1 := shared.GameMessage{
+        Type: "GLOBAL_MATCH_CREATED",
+        Data: utils.MustMarshal(room),
+    }
+    server.Matchmaking.Nc.Publish(topic1, utils.MustMarshal(msg1))
+
+    // Notifica player 2
+    topic2 := fmt.Sprintf("server.%d.client.%s", room.Server2ID, room.Player2.UserId)
+    msg2 := shared.GameMessage{
+        Type: "GLOBAL_MATCH_CREATED",
+        Data: utils.MustMarshal(room),
+    }
+    server.Matchmaking.Nc.Publish(topic2, utils.MustMarshal(msg2))
 }

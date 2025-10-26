@@ -67,6 +67,8 @@ func StartNats(server *models.Server) (*nats.Conn, error) {
 		case "PING":
     		handlers.HandlePing(server, req, nc, msg)
 
+		case "GLOBAL_MATCH_CREATED":
+			log.Println("entrou no GLOBAL_MATCH_CREATED")
 		}
 		
 

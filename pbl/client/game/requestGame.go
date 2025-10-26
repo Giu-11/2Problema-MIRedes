@@ -42,27 +42,6 @@ func ChooseCard(user shared.User) (shared.Card, bool) {
 	return selected, true
 }
 
-/*
-//enviado em broadcast 
-func SendCardPlay(nc *nats.Conn, room *shared.GameRoom, fromUserID string, card shared.Card) {
-    dataBytes, _ := json.Marshal(card)
-
-    //Envia a carta para ambos, mas mantém o turno como o jogador atual
-    for _, player := range []*shared.User{room.Player1, room.Player2} {
-        msg := shared.GameMessage{
-            Type: "PLAY_CARD",
-            Data: dataBytes,
-            From: fromUserID,
-            Turn: fromUserID, 
-        }
-
-        bytes, _ := json.Marshal(msg)
-        topic := fmt.Sprintf("client.%s.inbox", player.UserId)
-        nc.Publish(topic, bytes)
-    }
-}*/
-
-
 func SendCardPlay(nc *nats.Conn, room *shared.GameRoom, fromUserID string, card shared.Card) {
 	dataBytes, _ := json.Marshal(card)
 
@@ -175,4 +154,52 @@ func ClientProcessGameMessage(msgData []byte, currentUser shared.User, nc *nats.
     default:
         fmt.Printf("\nTipo desconhecido: '%s'\n", msg.Type)
     }
+}
+
+// HandleStartGlobalMatchListener inscreve o cliente no NATS para receber notificações de partidas globais.
+// matchChan é um canal que receberá informações sobre o adversário e a sala.
+func HandleStartGlobalMatchListener(serverID int, nc *nats.Conn, clientID string, matchChan chan<- MatchInfo) *nats.Subscription {
+    // Tópico específico do cliente no servidor
+    clientTopic := fmt.Sprintf("server.%d.client.%s", serverID, clientID)
+
+    sub, err := nc.Subscribe(clientTopic, func(msg *nats.Msg) {
+        var gameMsg shared.GameMessage
+        if err := json.Unmarshal(msg.Data, &gameMsg); err != nil {
+            log.Println("Erro ao decodificar mensagem de partida global:", err)
+            return
+        }
+
+        // Apenas processa partidas globais
+        if gameMsg.Type == "GLOBAL_MATCH_CREATED" {
+            var room shared.GameRoom
+            if err := json.Unmarshal(gameMsg.Data, &room); err != nil {
+                log.Println("Erro ao decodificar dados da sala:", err)
+                return
+            }
+
+            // Determina quem é o adversário
+            var opponent shared.User
+            if room.Player1.UserId == clientID {
+                opponent = *room.Player2
+            } else {
+                opponent = *room.Player1
+            }
+
+            // Envia para o canal do cliente
+            matchChan <- MatchInfo{
+                Opponent: opponent,
+                Room:     room,
+            }
+
+            log.Printf("[Cliente] Nova partida global recebida! Sala: %s, Adversário: %s", room.ID, opponent.UserName)
+        }
+    })
+
+    if err != nil {
+        log.Printf("Erro ao se inscrever no tópico %s: %v", clientTopic, err)
+        return nil
+    }
+
+    log.Printf("[Cliente] Inscrito no tópico global: %s", clientTopic)
+    return sub
 }
