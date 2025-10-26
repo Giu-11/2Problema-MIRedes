@@ -447,7 +447,8 @@ func HandleGameMessage(server *models.Server, request shared.Request, nc *nats.C
         return
     }
     room.PlayersCards[gameMsg.From] = card
-    //fmt.Println("Carta que chegou: ", card)
+	log.Printf("\033[31mCARTA RECEBIDA: %+v\033[0m", card)
+    fmt.Println("Carta que chegou: ", card)
 
     //Determina quem será o próximo
     var nextTurn string

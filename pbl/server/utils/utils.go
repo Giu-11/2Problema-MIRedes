@@ -8,6 +8,7 @@ import (
 	"net/http"
 	"pbl/server/models"
 	"time"
+	"pbl/shared"
 )
 
 //Descobrir o IP do pc que tá rodando o servidor
@@ -79,4 +80,22 @@ func SendElectionMessage(peerURL string, message models.ElectionMessage) error {
 func MustMarshal(v interface{}) json.RawMessage {
 	b, _ := json.Marshal(v)
 	return json.RawMessage(b)
+}
+
+func NotifyClients(room shared.GameRoom, server *models.Server) {
+    // Notifica player 1
+    topic1 := fmt.Sprintf("server.%d.client.%s", room.Server1ID, room.Player1.UserId)
+    msg1 := shared.GameMessage{
+        Type: "GLOBAL_MATCH_CREATED",
+        Data: MustMarshal(room),
+    }
+    server.Matchmaking.Nc.Publish(topic1, MustMarshal(msg1))
+
+    // Notifica player 2
+    topic2 := fmt.Sprintf("server.%d.client.%s", room.Server2ID, room.Player2.UserId)
+    msg2 := shared.GameMessage{
+        Type: "GLOBAL_MATCH_CREATED",
+        Data: MustMarshal(room),
+    }
+    server.Matchmaking.Nc.Publish(topic2, MustMarshal(msg2))
 }

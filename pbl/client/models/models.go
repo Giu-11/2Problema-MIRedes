@@ -5,3 +5,5 @@ type ServerInfo struct {
 	Name string
 	NATS string
 }
+
+

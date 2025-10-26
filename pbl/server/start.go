@@ -2,7 +2,6 @@ package main
 
 import (
 	"os"
-	"fmt"
 	"log"
 	"time"
 	"bytes"
@@ -109,7 +108,7 @@ func StartServer(idString, port, peersEnv, natsURL string) error {
 			// Apenas o líder envia notificações
 			if server.FSM.Raft != nil && server.FSM.Raft.State() == raft.Leader {
 				go notifyServersAboutMatch(room, server)
-				go notifyClients(*room, server)
+				go utils.NotifyClients(*room, server)
 			}
 		}
 	}()
@@ -129,7 +128,7 @@ func StartServer(idString, port, peersEnv, natsURL string) error {
         return
     }
     // Aqui você pode enviar a notificação para os clientes via NATS
-    notifyClients(room, server)
+    utils.NotifyClients(room, server)
     w.WriteHeader(http.StatusOK)
 })
 
@@ -180,20 +179,4 @@ func notifyServersAboutMatch(room *shared.GameRoom, server *models.Server) {
     }
 }
 
-func notifyClients(room shared.GameRoom, server *models.Server) {
-    // Notifica player 1
-    topic1 := fmt.Sprintf("server.%d.client.%s", room.Server1ID, room.Player1.UserId)
-    msg1 := shared.GameMessage{
-        Type: "GLOBAL_MATCH_CREATED",
-        Data: utils.MustMarshal(room),
-    }
-    server.Matchmaking.Nc.Publish(topic1, utils.MustMarshal(msg1))
 
-    // Notifica player 2
-    topic2 := fmt.Sprintf("server.%d.client.%s", room.Server2ID, room.Player2.UserId)
-    msg2 := shared.GameMessage{
-        Type: "GLOBAL_MATCH_CREATED",
-        Data: utils.MustMarshal(room),
-    }
-    server.Matchmaking.Nc.Publish(topic2, utils.MustMarshal(msg2))
-}

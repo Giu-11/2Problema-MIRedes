@@ -4,6 +4,7 @@ import (
 	"bufio"
 	"crypto/rand"
 	"encoding/binary"
+	"encoding/json"
 	"fmt"
 	"math"
 	"os"
@@ -70,24 +71,8 @@ func GenerateRoomID(serverID int) string {
 	return fmt.Sprintf("%d-%d", serverID, int(math.Abs(float64(id))))
 }
 
-/*
-func ShowWaitingScreen(user shared.User, matchChan <-chan shared.User) shared.User {
-	fmt.Printf("\nOlá %s! Entrou na fila. Aguardando pareamento...\n", user.UserName)
-
-	spinner := []string{"⣾", "⣽", "⣻", "⢿", "⡿", "⣟", "⣯", "⣷"}
-	i := 0
-	ticker := time.NewTicker(300 * time.Millisecond)
-	defer ticker.Stop()
-
-	for {
-		select {
-		case opponent := <-matchChan:
-			fmt.Printf("\nMatch encontrado! Jogando contra: %s\n", opponent.UserName)
-			return opponent
-		case <-ticker.C:
-			fmt.Printf("\r%s Aguardando pareamento...", spinner[i%len(spinner)])
-			i++
-		}
-	}
+// Helper para converter qualquer struct em json.RawMessage
+func MustMarshal(v interface{}) json.RawMessage {
+	b, _ := json.Marshal(v)
+	return json.RawMessage(b)
 }
-*/

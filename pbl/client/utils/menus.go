@@ -112,7 +112,7 @@ func ListCardsDeck(user *shared.User) {
 	fmt.Println("----------------------------------")
 	for i, card := range user.Deck {
 		//fmt.Printf("[%d] %s - %s\n", i+1, card.Element, card.Type)
-		msg := fmt.Sprintf("[%d] - %s %s\n", i, card.Element, card.Type)
+		msg := fmt.Sprintf("[%d] - %s %s\n", i + 1, card.Element, card.Type)
 		switch card.Element {
 		case "AR":
 			style.PrintCian(msg)

@@ -25,8 +25,8 @@ type FSM struct {
 	cardStock    []shared.Card
 	pendingCards map[string]shared.Card
 	//Para a parte global
-	globalQueue []shared.QueueEntry
-	globalRooms map[string]*shared.GameRoom
+	GlobalQueue []shared.QueueEntry
+	GlobalRooms map[string]*shared.GameRoom
 
 	CreatedRooms chan *shared.GameRoom
 	Raft *raft.Raft
@@ -37,7 +37,7 @@ func NewFSM() *FSM {
 		users:        make(map[string]shared.User),
 		cardStock:    cards.GerarEstoque(),
 		pendingCards: make(map[string]shared.Card),
-		globalRooms:  make(map[string]*shared.GameRoom),
+		GlobalRooms:  make(map[string]*shared.GameRoom),
 		CreatedRooms: make(chan *shared.GameRoom, 10),
 	}
 }
@@ -88,24 +88,6 @@ func (fsm *FSM) Apply(logEntry *raft.Log) interface{} {
 		log.Printf("[FSM] Carta para RequestID %s foi reivindicada e removida de pendentes.", payload.RequestID)
 		return nil
 
-	/*case sharedRaft.CommandQueueJoin:
-	var entry shared.QueueEntry
-	if err := json.Unmarshal(cmd.Data, &entry); err != nil {
-		log.Printf("[FSM] Erro ao decodificar dados da fila global %v", err)
-		return err
-	}
-	fsm.globalQueue = append(fsm.globalQueue, entry)
-	log.Printf("[FSM] Usuário %s adicionado à fila global", entry.Player.UserName)
-	//Mostra a fila global atual
-	names := make([]string, len(fsm.globalQueue))
-	for i, e := range fsm.globalQueue {
-		names[i] = e.Player.UserName
-	}
-	log.Printf("[FSM] Fila global atual: %v", names)
-
-	fsm.tryMatchPlayers()
-	return nil*/
-
 	case sharedRaft.CommandQueueJoinGlobal:
 		var entry shared.QueueEntry
 		if err := json.Unmarshal(cmd.Data, &entry); err != nil {
@@ -114,7 +96,7 @@ func (fsm *FSM) Apply(logEntry *raft.Log) interface{} {
 
 		// Evita duplicatas
 		exists := false
-		for _, e := range fsm.globalQueue {
+		for _, e := range fsm.GlobalQueue {
 			if e.Player.UserId == entry.Player.UserId {
 				exists = true
 				break
@@ -124,7 +106,7 @@ func (fsm *FSM) Apply(logEntry *raft.Log) interface{} {
 			return nil
 		}
 
-		fsm.globalQueue = append(fsm.globalQueue, entry)
+		fsm.GlobalQueue = append(fsm.GlobalQueue, entry)
 		log.Printf("[FSM] Usuário %s adicionado à fila global", entry.Player.UserName)
 
 		// APENAS líder cria partidas
@@ -143,7 +125,7 @@ func (fsm *FSM) Apply(logEntry *raft.Log) interface{} {
 			log.Printf("[FSM] Erro ao criar sala: %v", err)
 			return err
 		}
-		fsm.globalRooms[room.ID] = &room
+		fsm.GlobalRooms[room.ID] = &room
 		log.Printf("[FSM] Sala criada: %s (%s vs %s)", room.ID, room.Player1.UserName, room.Player2.UserName)
 
 		//notifica internamente (sem rede)
@@ -162,9 +144,9 @@ func (fsm *FSM) Apply(logEntry *raft.Log) interface{} {
 			log.Printf("[FSM] Erro ao decodificar LEAVE_QUEUE: %v", err)
 			return err
 		}
-		for i, e := range fsm.globalQueue {
+		for i, e := range fsm.GlobalQueue {
 			if e.Player.UserId == entry.Player.UserId {
-				fsm.globalQueue = append(fsm.globalQueue[:i], fsm.globalQueue[i+1:]...)
+				fsm.GlobalQueue = append(fsm.GlobalQueue[:i], fsm.GlobalQueue[i+1:]...)
 				log.Printf("[FSM] Usuário %s removido da fila global", entry.Player.UserName)
 				break
 			}
@@ -244,10 +226,10 @@ func (fsm *FSM) TryMatchPlayers() {
 		return
 	}
 
-	for len(fsm.globalQueue) >= 2 {
-		player1 := fsm.globalQueue[0].Player
-		player2 := fsm.globalQueue[1].Player
-		fsm.globalQueue = fsm.globalQueue[2:]
+	for len(fsm.GlobalQueue) >= 2 {
+		player1 := fsm.GlobalQueue[0].Player
+		player2 := fsm.GlobalQueue[1].Player
+		fsm.GlobalQueue = fsm.GlobalQueue[2:]
 
 		turn := chooseRandomPlayer(player1.UserId, player2.UserId)
 
@@ -330,3 +312,19 @@ func mustMarshal(v interface{}) []byte {
 	}
 	return data
 }
+
+
+func (fsm *FSM) ApplyPlayCard(room *shared.GameRoom, playerID string, card shared.Card) {
+	fsm.mu.Lock()
+	defer fsm.mu.Unlock()
+
+	// Atualiza turno, cartas jogadas, etc.
+	if room.Turn != playerID {
+		log.Printf("Não é a vez do jogador %s", playerID)
+		return
+	}
+	log.Println("Jogou essa porra de carta: ", card)
+}
+
+
+
