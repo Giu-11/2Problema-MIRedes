@@ -485,7 +485,7 @@ func HandleGameMessage(server *models.Server, request shared.Request, nc *nats.C
         //fmt.Println("Carta p1: ", cardP1)
         //fmt.Println("Carta p2: ", cardP2)
         resultP1 := game.CheckWinner(cardP1, cardP2)
-        game.NotifyResult(nc, room, resultP1)
+        NotifyResult(nc, room, resultP1)
 
         // Limpa cartas para a próxima rodada
         room.PlayersCards = make(map[string]shared.Card)

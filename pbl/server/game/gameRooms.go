@@ -4,14 +4,14 @@ import (
 	"fmt"
     "log"
 	"sync"
-    "bytes"
-    "net/http"
+    //"bytes"
+    //"net/http"
 	"math/big"
 	"crypto/rand"
 	"encoding/json"
 
 	"pbl/shared"
-	"pbl/server/fsm"
+	//"pbl/server/fsm"
 	"pbl/client/utils"
 
 	"github.com/nats-io/nats.go"
@@ -63,7 +63,7 @@ func SendTurnNotification(nc *nats.Conn, room *shared.GameRoom) {
         nc.Publish(topic, data)
     }
 }
-
+/*
 func HandlePlayCardRequest(fsm *fsm.FSM, nc *nats.Conn, serverID int, req shared.Request) {
 	var payload struct {
 		RoomID string      `json:"roomID"`
@@ -74,7 +74,9 @@ func HandlePlayCardRequest(fsm *fsm.FSM, nc *nats.Conn, serverID int, req shared
 		return
 	}
 
+	fsm.GlobalRoomsMu.Lock()
 	room, exists := fsm.GlobalRooms[payload.RoomID] // precisa estar exportado
+	fsm.GlobalRoomsMu.Unlock()
 	if !exists {
 		log.Printf("Sala não encontrada: %s", payload.RoomID)
 	
@@ -101,7 +103,7 @@ func HandlePlayCardRequest(fsm *fsm.FSM, nc *nats.Conn, serverID int, req shared
 			}
 		}()
 	}
-}
+}*/
 
 func notifyClientsCards(nc *nats.Conn, room *shared.GameRoom, card shared.Card) {
 	for _, player := range []*shared.User{room.Player1, room.Player2} {
@@ -123,3 +125,4 @@ func notifyClientsCards(nc *nats.Conn, room *shared.GameRoom, card shared.Card) 
 	}
 	log.Printf("[NotifyClients] Mensagem de carta jogada enviada para ambos os players da sala %s", room.ID)
 }
+

@@ -40,6 +40,7 @@ func ChooseCard(user shared.User) (shared.Card, bool) {
 }
 
 func SendCardPlayLocal(nc *nats.Conn, room *shared.GameRoom, fromUserID string, card shared.Card) {
+	log.Println("\033[31mpucou o sendcard paly local\033[0m")
 	dataBytes, _ := json.Marshal(card)
 
 	gameMsg := shared.GameMessage{

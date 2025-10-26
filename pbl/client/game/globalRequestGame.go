@@ -43,6 +43,7 @@ func HandleStartGlobalMatchListener(serverID int, nc *nats.Conn, clientID string
 			matchChan <- MatchInfo{
 				Opponent: opponent,
 				Room:     room,
+				IsGlobal: true,
 			}
 
 			log.Printf("[Cliente] Nova partida global recebida! Sala: %s, Adversário: %s", room.ID, opponent.UserName)
@@ -167,11 +168,11 @@ func PlayGlobalGame(nc *nats.Conn, room *shared.GameRoom, currentUser shared.Use
 	style.Clear()
 }
 
-func SendCardPlayGlobal(nc *nats.Conn, room *shared.GameRoom, client shared.User , card shared.Card) {
+func SendCardPlayGlobal(nc *nats.Conn, room *shared.GameRoom, client shared.User, card shared.Card) {
 	dataBytes, _ := json.Marshal(card)
 
 	gameMsg := shared.GameMessage{
-		Type:   "PLAY_CARD",
+		Type:   "PLAY_CARD_GLOBAL",
 		From:   client.UserId,
 		RoomID: room.ID,
 		Data:   dataBytes,
@@ -181,16 +182,14 @@ func SendCardPlayGlobal(nc *nats.Conn, room *shared.GameRoom, client shared.User
 
 	req := shared.Request{
 		ClientID: client.UserId,
-		Action:   "GAME_MESSAGE",
+		Action:   "GAME_MESSAGE_GLOBAL",
 		Payload:  payload,
 	}
 
 	reqBytes, _ := json.Marshal(req)
-	topic := fmt.Sprintf("server.%d.requests", room.ServerID)
+	topic := fmt.Sprintf("server.%d.requests", client.ServerID)
 
-	log.Printf("[DEBUG] Enviando jogada para o servidor %d (sala %s): %+v\n", room.ServerID, room.ID, card)
+	log.Printf("[DEBUG] Enviando jogada para o servidor %d (sala %s): %+v\n", client.ServerID, room.ID, card)
 
 	nc.Publish(topic, reqBytes)
 }
-
-

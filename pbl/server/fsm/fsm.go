@@ -26,7 +26,14 @@ type FSM struct {
 	pendingCards map[string]shared.Card
 	//Para a parte global
 	GlobalQueue []shared.QueueEntry
+	GlobalQueueMu sync.Mutex
+
 	GlobalRooms map[string]*shared.GameRoom
+	GlobalRoomsMu sync.RWMutex
+
+	// cartas pendentes por sala
+    PendingRoomCards map[string][]shared.Card
+    PendingMu        sync.Mutex
 
 	CreatedRooms chan *shared.GameRoom
 	Raft *raft.Raft
@@ -96,6 +103,7 @@ func (fsm *FSM) Apply(logEntry *raft.Log) interface{} {
 
 		// Evita duplicatas
 		exists := false
+		fsm.GlobalQueueMu.Lock()
 		for _, e := range fsm.GlobalQueue {
 			if e.Player.UserId == entry.Player.UserId {
 				exists = true
@@ -105,8 +113,10 @@ func (fsm *FSM) Apply(logEntry *raft.Log) interface{} {
 		if exists {
 			return nil
 		}
-
+		
 		fsm.GlobalQueue = append(fsm.GlobalQueue, entry)
+		fsm.GlobalQueueMu.Unlock()
+		
 		log.Printf("[FSM] Usuário %s adicionado à fila global", entry.Player.UserName)
 
 		// APENAS líder cria partidas
@@ -125,7 +135,9 @@ func (fsm *FSM) Apply(logEntry *raft.Log) interface{} {
 			log.Printf("[FSM] Erro ao criar sala: %v", err)
 			return err
 		}
+		fsm.GlobalRoomsMu.Lock()
 		fsm.GlobalRooms[room.ID] = &room
+		fsm.GlobalRoomsMu.Unlock()
 		log.Printf("[FSM] Sala criada: %s (%s vs %s)", room.ID, room.Player1.UserName, room.Player2.UserName)
 
 		//notifica internamente (sem rede)
@@ -144,6 +156,7 @@ func (fsm *FSM) Apply(logEntry *raft.Log) interface{} {
 			log.Printf("[FSM] Erro ao decodificar LEAVE_QUEUE: %v", err)
 			return err
 		}
+		fsm.GlobalQueueMu.Lock()
 		for i, e := range fsm.GlobalQueue {
 			if e.Player.UserId == entry.Player.UserId {
 				fsm.GlobalQueue = append(fsm.GlobalQueue[:i], fsm.GlobalQueue[i+1:]...)
@@ -151,6 +164,7 @@ func (fsm *FSM) Apply(logEntry *raft.Log) interface{} {
 				break
 			}
 		}
+		fsm.GlobalQueueMu.Unlock()
 		return nil
 	default:
 		return fmt.Errorf("unrecognized command type: %s", cmd.Type)
@@ -226,6 +240,7 @@ func (fsm *FSM) TryMatchPlayers() {
 		return
 	}
 
+	fsm.GlobalQueueMu.Lock()
 	for len(fsm.GlobalQueue) >= 2 {
 		player1 := fsm.GlobalQueue[0].Player
 		player2 := fsm.GlobalQueue[1].Player
@@ -266,6 +281,7 @@ func (fsm *FSM) TryMatchPlayers() {
 		log.Printf("[FSM] Preparando sala global: %s (%s vs %s) - Host: server%d",
 			room.ID, player1.UserName, player2.UserName, room.ServerID)
 	}
+	fsm.GlobalQueueMu.Unlock()
 }
 
 func chooseRandomPlayer(a, b string) string {
