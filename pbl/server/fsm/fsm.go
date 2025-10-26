@@ -31,10 +31,6 @@ type FSM struct {
 	GlobalRooms map[string]*shared.GameRoom
 	GlobalRoomsMu sync.RWMutex
 
-	// cartas pendentes por sala
-    PendingRoomCards map[string][]shared.Card
-    PendingMu        sync.Mutex
-
 	CreatedRooms chan *shared.GameRoom
 	Raft *raft.Raft
 }
