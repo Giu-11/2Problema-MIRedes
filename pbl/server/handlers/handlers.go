@@ -636,7 +636,6 @@ func HandlePing(server *models.Server, req shared.Request, nc *nats.Conn, msg *n
 	nc.Publish(clientTopic, respData)
 }
 
-
 func HandleHeartbeat(serverID int, request shared.Request, nc *nats.Conn, msg *nats.Msg) {
 	clientID := request.ClientID
 
@@ -654,93 +653,40 @@ func HandleHeartbeat(serverID int, request shared.Request, nc *nats.Conn, msg *n
 	mu.Unlock()
 }
 
-/*// Heatbeat para o clinete
-func StartHeartbeatMonitor(server *models.Server, nc *nats.Conn) {
-	go func() {
-		for {
-			time.Sleep(5 * time.Second)
-			now := time.Now()
-
-			mu.Lock()
-			for id, c := range activeClients {
-				if now.Sub(c.LastSeen) > 15*time.Second {
-					log.Printf("Cliente '%s' inativo. Removendo...", id)
-					delete(activeClients, id)
-
-					//remove do mapa de usuários do servidor
-					server.Mu.Lock()
-					delete(server.Users, id)
-					server.Mu.Unlock()
-
-					response := shared.Response{
-						Status: "success",
-						Action: "LOGOUT_SUCCESS",
-						Server: server.ID,
-					}
-					data, _ := json.Marshal(response)
-					//nc.Publish("server."+strconv.Itoa(server.ID)+".requests", data)
-					nc.Publish(fmt.Sprintf("client.%s.inbox", id), data)
-
-				}
-			}
-			mu.Unlock()
-		}
-	}()
-}
-*/
-
-/*// Handler para processar os heartbeats recebidos via NATS
-func HandleHeartbeat(serverID int, request shared.Request, nc *nats.Conn, msg *nats.Msg) {
-	clientID := request.ClientID
-	mu.Lock()
-	activeClients[clientID] = &ClientInfo{
-		ClientID: clientID,
-		LastSeen: time.Now(),
+func NotifyResult(nc *nats.Conn, room *shared.GameRoom, resultP1 string) {
+	var resultP2 string
+	switch resultP1 {
+	case "GANHOU":
+		resultP2 = "PERDEU"
+		room.Winner = room.Player1
+	case "PERDEU":
+		resultP2 = "GANHOU"
+		room.Winner = room.Player2
+	case "EMPATE":
+		resultP2 = "EMPATE"
+		room.Winner = nil
 	}
-	mu.Unlock()
 
-	//log.Printf("[%d] - Heartbeat recebido de %s", serverID, clientID)
+	// Notifica Player1
+	msgP1 := shared.GameMessage{
+		Type:   "ROUND_RESULT",
+		From:   "SERVER",
+		Result: resultP1,
+		Winner: room.Winner,
+	}
+	dataP1, _ := json.Marshal(msgP1)
+	nc.Publish(fmt.Sprintf("client.%s.inbox", room.Player1.UserId), dataP1)
 
-}*/
+	// Notifica Player2
+	msgP2 := shared.GameMessage{
+		Type:   "ROUND_RESULT",
+		From:   "SERVER",
+		Result: resultP2,
+		Winner: room.Winner,
+	}
+	dataP2, _ := json.Marshal(msgP2)
+	nc.Publish(fmt.Sprintf("client.%s.inbox", room.Player2.UserId), dataP2)
 
-
-//CADASTRO --> Jogado fora por falta de tempo
-/*func HandleRegister(server *models.Server, request shared.Request, nc *nats.Conn, message *nats.Msg) {
-    // 1. Verifica se este nó é o líder. Só o líder deve aceitar escritas.
-    if server.Raft.State() != raft.Leader {
-        // Redireciona para o líder ou retorna um erro
-        // Por simplicidade, vamos retornar um erro agora.
-        response := shared.Response{Status: "error", Error: "Not the leader. Try again later."}
-        data, _ := json.Marshal(response)
-        nc.Publish(message.Reply, data)
-        return
-    }
-
-    // 2. Monta o comando para o log do Raft
-    cmd := sharedRaft.Command{
-        Type: sharedRaft.CommandRegisterUser,
-        Data: request.Payload, //O payload já é o JSON do usuário
-    }
-    cmdBytes, err := json.Marshal(cmd)
-    if err != nil {
-        return
-    }
-
-    // 3. Aplica o comando ao log do Raft. Isso vai bloquear até ser replicado.
-    future := server.Raft.Apply(cmdBytes, 500*time.Millisecond)
-    if err := future.Error(); err != nil {
-        log.Printf("[%d] Erro ao aplicar comando Raft: %v", server.ID, err)
-        // ... trata o erro ...
-        return
-    }
-
-    // 4. O comando foi replicado com sucesso! Responde ao cliente.
-    log.Printf("[%d] - Cadastro replicado com sucesso via Raft.", server.ID)
-    response := shared.Response{
-        Status: "success",
-        Action: "REGISTER",
-        Server: server.ID,
-    }
-    data, _ := json.Marshal(response)
-    nc.Publish(message.Reply, data)
-}*/
+	//Limpa cartas da rodada
+	room.PlayersCards = make(map[string]shared.Card)
+}

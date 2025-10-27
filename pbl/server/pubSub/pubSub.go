@@ -53,7 +53,6 @@ func StartNats(server *models.Server) (*nats.Conn, error) {
 			handlers.HandleJoinQueue(server, req, nc, msg)
 
 		case "GAME_MESSAGE":
-			log.Println("\033[31mTa entrandoo pelo menos MESSEA LOVAL\033[0m")
     		handlers.HandleGameMessage(server, req, nc, msg)
 
 		case "OPEN_PACK":
@@ -68,15 +67,12 @@ func StartNats(server *models.Server) (*nats.Conn, error) {
 		case "PING":
     		handlers.HandlePing(server, req, nc, msg)
 
-		case "GLOBAL_MATCH_CREATED":
-			log.Println("entrou no GLOBAL_MATCH_CREATED")
+		/*case "GLOBAL_MATCH_CREATED":
+			log.Println("entrou no GLOBAL_MATCH_CREATED")*/
 
 		case "GAME_MESSAGE_GLOBAL":
-			log.Println("\033[31mTa entrandoo pelo menos GLOBAL CARALHO\033[0m")
     		handlers.HandleGlobalGameMessage(server, req, nc, msg)
 		}
-
-		
 
 	})
 	if err != nil {

@@ -1,12 +1,15 @@
 package game
 
 import (
+	"log"
 	"pbl/shared"
 )
 
 func CheckWinner(card1, card2 shared.Card) string{
 	//O retorno é o resultado do player 1, depois é apenas comparado: se player 1 perdeu, o player 2 ganhou. Caso o contrário, o player 2 perdeu. E em caso de empate, vai ser empate para os dois. 
-
+	log.Printf("\033[31mCarta P1: %s\033[0m", card1.Element)
+	log.Printf("\033[31mCarta P2: %s\033[0m", card2.Element)
+	
 	switch card1.Element{
 	case "FOGO":
 		switch card2.Element{

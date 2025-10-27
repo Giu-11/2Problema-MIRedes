@@ -125,7 +125,7 @@ func (fsm *FSM) Apply(logEntry *raft.Log) interface{} {
 
 
 	case sharedRaft.CommandCreateRoom:
-		log.Println("Chamou o create")
+		log.Printf("[FSM] 🔵 APPLY CREATE_ROOM no servidor %d", raft.Leader)
 		var room shared.GameRoom
 		if err := json.Unmarshal(cmd.Data, &room); err != nil {
 			log.Printf("[FSM] Erro ao criar sala: %v", err)
@@ -134,11 +134,13 @@ func (fsm *FSM) Apply(logEntry *raft.Log) interface{} {
 		fsm.GlobalRoomsMu.Lock()
 		fsm.GlobalRooms[room.ID] = &room
 		fsm.GlobalRoomsMu.Unlock()
+
 		log.Printf("[FSM] Sala criada: %s (%s vs %s)", room.ID, room.Player1.UserName, room.Player2.UserName)
 
 		//notifica internamente (sem rede)
 		select {
 		case fsm.CreatedRooms <- &room:
+			log.Printf("[FSM] Sala enviada ao canal")
 		default:
 			log.Println("[FSM] Aviso: fila de createdRooms cheia, descartando notificação.")
 		}
@@ -296,6 +298,7 @@ func chooseRandomPlayerInt(a, b int) int {
 	return b
 }
 
+//virou inutil a função
 func (fsm *FSM) SendPlayerToLeaderQueue(entry shared.QueueEntry) {
 	if fsm.Raft == nil {
 		log.Println("[FSM] Raft não inicializado")
@@ -323,19 +326,6 @@ func mustMarshal(v interface{}) []byte {
 		panic(err)
 	}
 	return data
-}
-
-
-func (fsm *FSM) ApplyPlayCard(room *shared.GameRoom, playerID string, card shared.Card) {
-	fsm.mu.Lock()
-	defer fsm.mu.Unlock()
-
-	// Atualiza turno, cartas jogadas, etc.
-	if room.Turn != playerID {
-		log.Printf("Não é a vez do jogador %s", playerID)
-		return
-	}
-	log.Println("Jogou essa porra de carta: ", card)
 }
 
 

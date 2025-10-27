@@ -73,14 +73,16 @@ func PlayGlobalGame(nc *nats.Conn, room *shared.GameRoom, currentUser shared.Use
 	alreadyPlayed := false
 	gameMsgChan := make(chan shared.GameMessage, 10)
 
-	// Tópico do cliente no servidor (recebe mensagens do host)
-	clientTopic := fmt.Sprintf("server.%d.client.%s", room.ServerID, currentUser.UserId)
+	clientTopic := fmt.Sprintf("server.%d.client.%s", currentUser.ServerID, currentUser.UserId)
+	log.Printf("[Cliente] Inscrito no tópico: %s", clientTopic)
+	
 	sub, err := nc.Subscribe(clientTopic, func(msg *nats.Msg) {
 		var gameMsg shared.GameMessage
 		if err := json.Unmarshal(msg.Data, &gameMsg); err != nil {
 			log.Println("Erro ao decodificar mensagem:", err)
 			return
 		}
+		log.Printf("[Cliente] Mensagem recebida: Type=%s, From=%s", gameMsg.Type, gameMsg.From)
 		gameMsgChan <- gameMsg
 	})
 	if err != nil {
@@ -89,7 +91,7 @@ func PlayGlobalGame(nc *nats.Conn, room *shared.GameRoom, currentUser shared.Use
 	}
 	defer sub.Unsubscribe()
 
-	// Jogada inicial se for a vez do usuário
+
 	if isMyTurn {
 		card, ok := ChooseCard(currentUser)
 		if !ok {
@@ -97,7 +99,6 @@ func PlayGlobalGame(nc *nats.Conn, room *shared.GameRoom, currentUser shared.Use
 			return
 		}
 
-		// Aqui enviamos para o **servidor host da sala global**
 		SendCardPlayGlobal(nc, room, currentUser, card)
 		fmt.Printf("\nVocê jogou: %s (%s)\n", card.Element, card.Type)
 		fmt.Println("Aguardando adversário...")
@@ -120,9 +121,8 @@ func PlayGlobalGame(nc *nats.Conn, room *shared.GameRoom, currentUser shared.Use
 
 					fmt.Printf("\n%s jogou: %s (%s)\n", opponent.UserName, card.Element, card.Type)
 
-					if !alreadyPlayed {
-						room.Turn = currentUser.UserId
-						fmt.Println("\nSua vez!")
+					if gameMsg.Turn == currentUser.UserId && !alreadyPlayed {
+						fmt.Println("\n✓ Sua vez de jogar!")
 						chosenCard, ok := ChooseCard(currentUser)
 						if ok {
 							SendCardPlayGlobal(nc, room, currentUser, chosenCard)
@@ -133,7 +133,7 @@ func PlayGlobalGame(nc *nats.Conn, room *shared.GameRoom, currentUser shared.Use
 							fmt.Println("Você desistiu da partida.")
 							return
 						}
-					} else {
+					} else if alreadyPlayed {
 						fmt.Println("Aguardando resultado da rodada...")
 					}
 				}

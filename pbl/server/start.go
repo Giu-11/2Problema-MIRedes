@@ -33,8 +33,13 @@ func StartServer(idString, port, peersEnv, natsURL string) error {
 	peerInfos := parsePeers(peersEnv)
 	server := models.NewServer(id, port, peerInfos)
 
+	
 	// Configuração Raft
 	config := raft.DefaultConfig()
+	config.HeartbeatTimeout = 2000 * time.Millisecond  // ← Aumenta timeouts
+	config.ElectionTimeout = 2000 * time.Millisecond
+	config.CommitTimeout = 1000 * time.Millisecond
+
 	config.LocalID = raft.ServerID(idString)
 
 	raftAdvAddr := os.Getenv("RAFT_ADVERTISE_ADDR")
@@ -129,24 +134,24 @@ func StartServer(idString, port, peersEnv, natsURL string) error {
 		}
 	}()
 
-
-
-
 	// HTTP handlers
 	http.HandleFunc("/raft", transport.HandleRaftRequest)
 	http.HandleFunc("/leader/draw-card", handlers.LeaderDrawCardHandler(server))
 	http.HandleFunc("/leader/join-global-queue", handlers.LeaderJoinGlobalQueueHandler(server))
 	
 	http.HandleFunc("/notify-match", func(w http.ResponseWriter, r *http.Request) {
-    var room shared.GameRoom
-    if err := json.NewDecoder(r.Body).Decode(&room); err != nil {
-        http.Error(w, "Invalid payload", http.StatusBadRequest)
-        return
-    }
-    // Aqui você pode enviar a notificação para os clientes via NATS
-    utils.NotifyClients(room, server)
-    w.WriteHeader(http.StatusOK)
-})
+		var room shared.GameRoom
+		if err := json.NewDecoder(r.Body).Decode(&room); err != nil {
+			http.Error(w, "Invalid payload", http.StatusBadRequest)
+			return
+		}
+
+		utils.NotifyClients(room, server)
+		w.WriteHeader(http.StatusOK)
+	})
+	http.HandleFunc("/forward-card", handlers.HandleForwardCard(server, nc))
+	http.HandleFunc("/forward-result", handlers.HandleForwardCard(server, nc))
+	http.HandleFunc("/forward-to-host", handlers.HandleForwardToHost(server, nc))
 
 
 	log.Printf("[Servidor %d] HTTP iniciado na porta %s, pronto para Raft e NATS", server.ID, server.Port)
