@@ -1,15 +1,13 @@
 package handlers
 
 import (
-	//"io"
-
-	"bytes"
-	"encoding/json"
 	"fmt"
 	"log"
-	"net/http"
-	"sync"
 	"time"
+	"sync"
+	"bytes"
+	"net/http"
+	"encoding/json"
 
 	"pbl/server/game"
 	"pbl/server/models"
@@ -162,66 +160,9 @@ func HandleLogout(server *models.Server, request shared.Request, nc *nats.Conn, 
 	nc.Publish(msg.Reply, data)
 }
 
-//Para fora do compose
-/*func HandleDrawCard(server *models.Server, request shared.Request, nc *nats.Conn, message *nats.Msg) {
-	if server.Raft.State() == raft.Leader {
-		// Se já somos o líder, processamos, salvamos localmente e respondemos.
-		result, err := processDrawCardRequest(server, request.ClientID)
-		if err != nil {
-			respondWithError(nc, message, err.Error())
-			return
-		}
-		saveCardToLocalUser(server, request.ClientID, result)
-		respondWithSuccess(nc, message, result)
-		return
-	}
-
-	// Se não somos o líder, descobrimos quem é e encaminhamos via HTTP REST.
-	leaderAddr := server.Raft.Leader()
-	log.Printf("\033[31mEDENREÇO DO RADT:%s\033[0m", leaderAddr)
-	
-	if leaderAddr == "" {
-		respondWithError(nc, message, "Líder não disponível no momento, tente novamente.")
-		return
-	}
-
-	log.Printf("[%d] Não sou o líder. Encaminhando 'Pegar Carta' para o líder em %s", server.ID, leaderAddr)
-
-	// O formato da mensagem para o líder é um JSON com o clientID.
-	payload := map[string]string{"clientID": request.ClientID}
-	jsonPayload, _ := json.Marshal(payload)
-
-	// Faz uma requisição HTTP POST para o endpoint REST do líder.
-	resp, err := http.Post(fmt.Sprintf("http://%s/leader/draw-card", leaderAddr), "application/json", bytes.NewBuffer(jsonPayload))
-	if err != nil {
-		respondWithError(nc, message, fmt.Sprintf("Falha ao se comunicar com o líder: %v", err))
-		return
-	}
-	defer resp.Body.Close()
-
-	// Repassa a resposta do líder diretamente para o cliente via NATS.
-	var leaderResponse shared.Response
-	if err := json.NewDecoder(resp.Body).Decode(&leaderResponse); err != nil {
-		respondWithError(nc, message, "Resposta inválida do líder.")
-		return
-	}
-
-	if leaderResponse.Status == "success" {
-		var drawnData shared.CardDrawnData
-		if err := json.Unmarshal(leaderResponse.Data, &drawnData); err != nil {
-			respondWithError(nc, message, "Dados da carta inválidos na resposta do líder.")
-			return
-		}
-		saveCardToLocalUser(server, request.ClientID, drawnData.Card)
-	}
-
-	finalResponseBytes, _ := json.Marshal(leaderResponse)
-	nc.Publish(message.Reply, finalResponseBytes)
-}*/
-
 func HandleDrawCard(server *models.Server, request shared.Request, nc *nats.Conn, message *nats.Msg) {
 	if server.Raft.State() == raft.Leader {
-		// Se já somos o líder, processamos, salvamos localmente e respondemos.
+		// Se é o líder, processa, salva localmente e responde.
 		result, err := processDrawCardRequest(server, request.ClientID)
 		if err != nil {
 			respondWithError(nc, message, err.Error())
@@ -232,7 +173,7 @@ func HandleDrawCard(server *models.Server, request shared.Request, nc *nats.Conn
 		return
 	}
 
-	// Se não somos o líder, descobrimos quem é e encaminhamos via HTTP REST.
+	// Se não é o líder, descobre quem é e encaminha via HTTP REST.
 	leaderAddr := string(server.Raft.Leader())
 	if leaderAddr == "" {
 		respondWithError(nc, message, "Líder não disponível no momento, tente novamente.")
@@ -241,25 +182,6 @@ func HandleDrawCard(server *models.Server, request shared.Request, nc *nats.Conn
 
 	log.Printf("[%d] Não sou o líder. Endereço do líder retornado pelo Raft: %s", server.ID, leaderAddr)
 	
-	//Como no raft tá vindo 0.0.0.0 no inicio, aqui eu faço uma "conversão" --> para funcionar no compose
-	fmt.Printf("\n\t\t lider: %s!\n", leaderAddr)
-	/*parts := strings.Split(leaderAddr, ":")
-	host := parts[0]
-	port := parts[1]
-
-	// Substitui 0.0.0.0 pelo container correto do líder
-	if host == "0.0.0.0" {
-		switch port {
-		case "8001":
-			host = "server1"
-		case "8002":
-			host = "server2"
-		case "8003":
-			host = "server3"
-		}
-	}
-
-	leaderURL := fmt.Sprintf("http://%s:%s/leader/draw-card", host, port)*/
 	leaderURL := fmt.Sprintf("http://%s/leader/draw-card", leaderAddr)
 
 	// Cria payload para o líder
@@ -449,8 +371,6 @@ func HandleGameMessage(server *models.Server, request shared.Request, nc *nats.C
         return
     }
     room.PlayersCards[gameMsg.From] = card
-	log.Printf("\033[31mCARTA RECEBIDA: %+v\033[0m", card)
-    fmt.Println("Carta que chegou: ", card)
 
     //Determina quem será o próximo
     var nextTurn string
@@ -470,9 +390,6 @@ func HandleGameMessage(server *models.Server, request shared.Request, nc *nats.C
     }
     dataTurn, _ := json.Marshal(turnMsg)
 
-    /*for _, player := range []*shared.User{room.Player1, room.Player2} {
-        nc.Publish(fmt.Sprintf("client.%s.inbox", player.UserId), dataTurn)
-    }*/
     opponentID := room.Player1.UserId
     if gameMsg.From == room.Player1.UserId{
         opponentID = room.Player2.UserId
@@ -484,8 +401,7 @@ func HandleGameMessage(server *models.Server, request shared.Request, nc *nats.C
     if len(room.PlayersCards) == 2 {
         cardP1 := room.PlayersCards[room.Player1.UserId]
         cardP2 := room.PlayersCards[room.Player2.UserId]
-        //fmt.Println("Carta p1: ", cardP1)
-        //fmt.Println("Carta p2: ", cardP2)
+  
         resultP1 := game.CheckWinner(cardP1, cardP2)
         NotifyResult(nc, room, resultP1)
 
@@ -565,10 +481,6 @@ func StartGameHandler(w http.ResponseWriter, r *http.Request) {
 	log.Printf("[StartGameHandler] Nova partida recebida: %s (%s vs %s). Turno: %s",
 		room.ID, room.Player1.UserName, room.Player2.UserName, room.Turn)
 
-	// Aqui você pode inicializar timers, preparar decks, ou iniciar a lógica do jogo
-	// Exemplo:
-	// go StartMatch(room.ID)
-
 	// Responde para confirmar que recebeu
 	w.Header().Set("Content-Type", "application/json")
 	resp := map[string]string{
@@ -579,6 +491,7 @@ func StartGameHandler(w http.ResponseWriter, r *http.Request) {
 	json.NewEncoder(w).Encode(resp)
 }
 
+//Heartbeat
 func StartHeartbeatMonitor(server *models.Server, nc *nats.Conn) {
 	go func() {
 		for {
@@ -606,15 +519,6 @@ func StartHeartbeatMonitor(server *models.Server, nc *nats.Conn) {
 	}()
 }
 
-// Chamado quando o cliente responde ao ping (pong)
-func HandlePong(serverID int, clientID string) {
-	mu.Lock()
-	defer mu.Unlock()
-	if c, ok := activeClients[clientID]; ok {
-		c.LastSeen = time.Now()
-		c.State = Active
-	}
-}
 
 func HandlePing(server *models.Server, req shared.Request, nc *nats.Conn, msg *nats.Msg) {
 	clientID := req.ClientID

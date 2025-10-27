@@ -54,17 +54,16 @@ func HandleJoinQueue(server *models.Server, request shared.Request, nc *nats.Con
 	nc.Publish(msg.Reply, data)
 }
 
-// Monitora a fila local e move jogadores para a fila global se passarem de 5s
+// Monitora a fila local e move jogadores para a fila global se passarem de 10s
 func MonitorLocalQueue(server *models.Server, nc *nats.Conn) {
 	ticker := time.NewTicker(1 * time.Second)
 
 	for range ticker.C {
-		//log.Printf("[Matchmaking] Verificando fila local...")
 		now := time.Now()
 
 		server.Matchmaking.Mutex.Lock()
 
-		//Move jogadores da fila local para global se esperaram demais
+		//Move jogadores da fila local para global após 10 segundos de espera
 		for i := 0; i < len(server.Matchmaking.LocalQueue); {
 			entry := server.Matchmaking.LocalQueue[i]
 			waitTime := now.Sub(entry.JoinTime)
@@ -211,24 +210,6 @@ func SendToGlobalQueue(entry shared.QueueEntry, server *models.Server) {
         return
     }
 
-    // Pega apenas a porta do endereço Raft
-    /*parts := strings.Split(leaderAddr, ":")
-    if len(parts) != 2 {
-        log.Printf("[Follower] Endereço do líder inválido: %s", leaderAddr)
-        return
-    }
-    portNum, err := strconv.Atoi(parts[1])
-    if err != nil {
-        log.Printf("[Follower] Porta do líder inválida: %s", parts[1])
-        return
-    }
-
-    // Converte a porta em ID do servidor (assumindo porta = 8000 + ID)
-    leaderID := portNum - 8000
-
-    // Monta o URL do líder correto (nome do serviço Docker)
-	//url := fmt.Sprintf("http://%s/leader/join-global-queue", leaderAddr)
-    url := fmt.Sprintf("http://server%d:800%d/leader/join-global-queue", leaderID, leaderID)*/
 	url := fmt.Sprintf("http://%s/leader/join-global-queue", leaderAddr)
 
     payload := utils.MustMarshal(entry)

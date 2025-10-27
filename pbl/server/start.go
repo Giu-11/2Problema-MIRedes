@@ -80,21 +80,18 @@ func StartServer(idString, port, peersEnv, natsURL string) error {
 	// Bootstrap cluster
 	var configuration raft.Configuration
 	
-	// CORRIGIDO: Use o endereço de anúncio!
 	selfAddr := raftAdvAddr 
 	configuration.Servers = []raft.Server{
 		{ID: raft.ServerID(idString), Address: raft.ServerAddress(selfAddr)},
 	}
-	// Bootstrap cluster
+	
 	for _, peer := range peerInfos {
-		// peer.URL vem como "http://server2:8002"
-		// Precisamos apenas de "server2:8002"
 		raftPeerAddr := strings.TrimPrefix(peer.URL, "http://")
 		raftPeerAddr = strings.TrimPrefix(raftPeerAddr, "https://") 
 		
 		configuration.Servers = append(configuration.Servers, raft.Server{
 			ID:      raft.ServerID(strconv.Itoa(peer.ID)),
-			Address: raft.ServerAddress(raftPeerAddr), // <--- CORRIGIDO
+			Address: raft.ServerAddress(raftPeerAddr),
 		})
 	}
 	ra.BootstrapCluster(configuration)
@@ -108,7 +105,7 @@ func StartServer(idString, port, peersEnv, natsURL string) error {
 
 	// Monitora fila local e heartbeat
 	go handlers.MonitorLocalQueue(server, nc)
-	log.Printf("[Servidor %d] Monitor de matchmaking local iniciado.", server.ID)
+	//log.Printf("[Servidor %d] Monitor de matchmaking local iniciado.", server.ID)
 	handlers.StartHeartbeatMonitor(server, nc)
 
 	// Ticker para o líder tentar criar partidas a cada 500ms

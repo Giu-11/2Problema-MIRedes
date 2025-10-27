@@ -1,10 +1,10 @@
 package game
 
 import (
-	"encoding/json"
-	"fmt"
 	"log"
+	"fmt"
 	"time"
+	"encoding/json"
 
 	"pbl/shared"
 	"pbl/style"
@@ -55,7 +55,7 @@ func HandleStartGlobalMatchListener(serverID int, nc *nats.Conn, clientID string
 		return nil
 	}
 
-	log.Printf("[Cliente] Inscrito no tópico global: %s", clientTopic)
+	//log.Printf("[Cliente] Inscrito no tópico global: %s", clientTopic)
 	return sub
 }
 
@@ -119,7 +119,7 @@ func PlayGlobalGame(nc *nats.Conn, room *shared.GameRoom, currentUser shared.Use
 						}
 					}
 
-					fmt.Printf("\n%s jogou: %s (%s)\n", opponent.UserName, card.Element, card.Type)
+					//fmt.Printf("\n%s jogou: %s (%s)\n", opponent.UserName, card.Element, card.Type)
 
 					if gameMsg.Turn == currentUser.UserId && !alreadyPlayed {
 						fmt.Println("\n✓ Sua vez de jogar!")

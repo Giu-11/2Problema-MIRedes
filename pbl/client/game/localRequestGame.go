@@ -174,7 +174,7 @@ func PlayLocalGame(nc *nats.Conn, room *shared.GameRoom, currentUser shared.User
 						}
 					}
 
-					fmt.Printf("\n%s jogou: %s (%s)\n", opponent.UserName, card.Element, card.Type)
+					//fmt.Printf("\n%s jogou: %s (%s)\n", opponent.UserName, card.Element, card.Type)
 
 					if !alreadyPlayed {
 						room.Turn = currentUser.UserId

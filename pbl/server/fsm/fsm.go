@@ -1,14 +1,14 @@
 package fsm
 
 import (
-	"crypto/rand"
-	"encoding/json"
-	"fmt"
 	"io"
+	"fmt"
 	"log"
-	"math/big"
 	"sync"
 	"time"
+	"math/big"
+	"crypto/rand"
+	"encoding/json"
 
 	"pbl/server/cards"
 
@@ -18,12 +18,13 @@ import (
 	"github.com/hashicorp/raft"
 )
 
-// maquina de estados finitos
+// máquina de estados finitos
 type FSM struct {
 	mu           sync.Mutex
 	users        map[string]shared.User // mapa de usuarios
 	cardStock    []shared.Card
 	pendingCards map[string]shared.Card
+
 	//Para a parte global
 	GlobalQueue []shared.QueueEntry
 	GlobalQueueMu sync.Mutex
@@ -115,7 +116,7 @@ func (fsm *FSM) Apply(logEntry *raft.Log) interface{} {
 		
 		log.Printf("[FSM] Usuário %s adicionado à fila global", entry.Player.UserName)
 
-		// APENAS líder cria partidas
+		// líder cria partidas
 		if fsm.Raft != nil && fsm.Raft.State() == raft.Leader {
 			log.Println("[FSM] Sou o LÍDER! Tentando criar partidas...")
 			go fsm.TryMatchPlayers()
@@ -125,7 +126,7 @@ func (fsm *FSM) Apply(logEntry *raft.Log) interface{} {
 
 
 	case sharedRaft.CommandCreateRoom:
-		log.Printf("[FSM] 🔵 APPLY CREATE_ROOM no servidor %d", raft.Leader)
+		//log.Printf("[FSM] APPLY CREATE_ROOM no servidor %d", raft.Leader)
 		var room shared.GameRoom
 		if err := json.Unmarshal(cmd.Data, &room); err != nil {
 			log.Printf("[FSM] Erro ao criar sala: %v", err)
@@ -137,7 +138,7 @@ func (fsm *FSM) Apply(logEntry *raft.Log) interface{} {
 
 		log.Printf("[FSM] Sala criada: %s (%s vs %s)", room.ID, room.Player1.UserName, room.Player2.UserName)
 
-		//notifica internamente (sem rede)
+		//notifica internamente 
 		select {
 		case fsm.CreatedRooms <- &room:
 			log.Printf("[FSM] Sala enviada ao canal")
@@ -298,6 +299,7 @@ func chooseRandomPlayerInt(a, b int) int {
 	return b
 }
 
+/*
 //virou inutil a função
 func (fsm *FSM) SendPlayerToLeaderQueue(entry shared.QueueEntry) {
 	if fsm.Raft == nil {
@@ -318,7 +320,7 @@ func (fsm *FSM) SendPlayerToLeaderQueue(entry shared.QueueEntry) {
 	}
 
 	log.Printf("[FSM] Jogador %s enviado para líder", entry.Player.UserName)
-}
+}*/
 
 func mustMarshal(v interface{}) []byte {
 	data, err := json.Marshal(v)
