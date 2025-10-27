@@ -59,10 +59,7 @@ func StartNats(server *models.Server) (*nats.Conn, error) {
 			handlers.HandleDrawCard(server, req, nc, msg)
 
 		case "SEE_CARDS":
-			handlers.SeeCardsHandler(server, req, nc, msg)
-
-		case "CHANGE_DECK":
-			handlers.HandleChangeDeck(server, req, nc, msg)
+			handlers.HandleSeeCards(server, req, nc, msg)
 		
 		case "PING":
     		handlers.HandlePing(server, req, nc, msg)
@@ -72,6 +69,11 @@ func StartNats(server *models.Server) (*nats.Conn, error) {
 
 		case "GAME_MESSAGE_GLOBAL":
     		handlers.HandleGlobalGameMessage(server, req, nc, msg)
+			handlers.HandleSeeCards(server, req, nc, msg)
+		case "CHANGE_DECK":
+			handlers.HandleChangeDeck(server, req, nc, msg)
+		case "SEE_DECK":
+			handlers.HandleSeeDeck(server, req, nc, msg)
 		}
 
 	})

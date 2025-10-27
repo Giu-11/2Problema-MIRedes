@@ -81,27 +81,37 @@ func ShowMenuCards()string{
 	fmt.Println("----------------------------------")
 	fmt.Println("1 - Ver cartas")
 	fmt.Println("2 - Mudar deck")
-	fmt.Println("3 - Voltar ao menu principal")
+	fmt.Println("3 - Ver deck atual")
+	fmt.Println("4 - Voltar ao menu principal")
 	return ReadLineSafe()
 }
 
 
-func MostrarInventario(cartas []shared.Card){
-	fmt.Println("Suas cartas:")
-	for i,carta := range cartas{
-		msg := fmt.Sprintf("[%d] - %s %s\n", i, carta.Element, carta.Type)
-		switch carta.Element {
+func PrintCartaCor(carta shared.Card){
+	cardString := fmt.Sprintf("%s %s", carta.Element, carta.Type)
+	switch carta.Element {
 		case "AR":
-			style.PrintCian(msg)
+			style.PrintCian(cardString)
 		case "AGUA":
-			style.PrintAz(msg)
+			style.PrintAz(cardString)
 		case "FOGO":
-			style.PrintVerm(msg)
+			style.PrintVerm(cardString)
 		case "TERRA":
-			style.PrintAma(msg)
+			style.PrintAma(cardString)
 		case "MATO":
-			style.PrintVerd(msg)
+			style.PrintVerd(cardString)
 		}
+}
+
+
+func MostrarInventario(cartas []shared.Card){
+	fmt.Println("\n----------------------------------")
+	fmt.Println("             Suas Cartas             ")
+	fmt.Println("----------------------------------")
+	for i,carta := range cartas{
+		fmt.Printf("[%d] - ", i)
+		PrintCartaCor(carta)
+		fmt.Print("\n")
 	}
 }
 
@@ -110,21 +120,10 @@ func ListCardsDeck(user *shared.User) {
 	fmt.Println("\n----------------------------------")
 	fmt.Println("             Seu deck             ")
 	fmt.Println("----------------------------------")
-	for i, card := range user.Deck {
-		//fmt.Printf("[%d] %s - %s\n", i+1, card.Element, card.Type)
-		msg := fmt.Sprintf("[%d] - %s %s\n", i + 1, card.Element, card.Type)
-		switch card.Element {
-		case "AR":
-			style.PrintCian(msg)
-		case "AGUA":
-			style.PrintAz(msg)
-		case "FOGO":
-			style.PrintVerm(msg)
-		case "TERRA":
-			style.PrintAma(msg)
-		case "MATO":
-			style.PrintVerd(msg)
-		}
+	for i,carta := range user.Deck{
+		fmt.Printf("[%d] - ", i)
+		PrintCartaCor(carta)
+		fmt.Print("\n")
 	}
 	fmt.Println("----------------------------------")
 }
