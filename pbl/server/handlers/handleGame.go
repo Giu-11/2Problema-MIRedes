@@ -23,7 +23,7 @@ func HandleGlobalGameMessage(server *models.Server, request shared.Request, nc *
 		return
 	}
 
-	log.Printf("[Global] CARTA RECEBIDA no servidor %d: %s", server.ID, gameMsg.RoomID)
+	//log.Printf("[Global] CARTA RECEBIDA no servidor %d: %s", server.ID, gameMsg.RoomID)
 
 	// MODIFICAÇÃO AQUI: Aguarda sala ser replicada com retry
 	var room *shared.GameRoom
@@ -35,16 +35,16 @@ func HandleGlobalGameMessage(server *models.Server, request shared.Request, nc *
 		server.FSM.GlobalRoomsMu.RUnlock()
 		
 		if exists {
-			log.Printf("[Global] ✅ Sala %s encontrada no servidor %d", gameMsg.RoomID, server.ID)
+			//log.Printf("[Global] Sala %s encontrada no servidor %d", gameMsg.RoomID, server.ID)
 			break
 		}
 		
-		log.Printf("[Global] ⏳ Sala %s não encontrada (tentativa %d/10). Aguardando replicação...", gameMsg.RoomID, i+1)
+		log.Printf("[Global] Sala %s não encontrada (tentativa %d/10). Aguardando replicação...", gameMsg.RoomID, i+1)
 		time.Sleep(500 * time.Millisecond)
 	}
 
 	if !exists {
-		log.Printf("[Global] ❌ Sala %s não encontrada no servidor %d após 5 tentativas", gameMsg.RoomID, server.ID)
+		log.Printf("[Global] Sala %s não encontrada no servidor %d após 10 tentativas", gameMsg.RoomID, server.ID)
 		return
 	}
 
@@ -52,7 +52,7 @@ func HandleGlobalGameMessage(server *models.Server, request shared.Request, nc *
 	processClientCard(server, room, gameMsg, nc)
 }
 
-// processClientCard: processa carta do cliente LOCAL
+// processa carta do cliente LOCAL
 func processClientCard(server *models.Server, room *shared.GameRoom, gameMsg shared.GameMessage, nc *nats.Conn) {
 	var card shared.Card
 	if err := json.Unmarshal(gameMsg.Data, &card); err != nil {
@@ -62,7 +62,7 @@ func processClientCard(server *models.Server, room *shared.GameRoom, gameMsg sha
 
 	log.Printf("[Global] Cliente %s jogou %s", gameMsg.From, card.Element)
 
-	// Determina oponente e próximo turno
+	// Determina oponente
 	var opponentID string
 	var opponentServerID int
 
@@ -74,7 +74,7 @@ func processClientCard(server *models.Server, room *shared.GameRoom, gameMsg sha
 		opponentServerID = room.Server1ID
 	}
 
-	// 1. Notifica o oponente
+	// 1. Notifica o oponente SEMPRE
 	turnMsg := shared.GameMessage{
 		Type:   "PLAY_CARD",
 		From:   gameMsg.From,
@@ -92,18 +92,18 @@ func processClientCard(server *models.Server, room *shared.GameRoom, gameMsg sha
 		log.Printf("[Global] Oponente local notificado: %s", opponentID)
 	}
 
-	// 2. Envia carta ao HOST para cálculo
+	// 2. SEMPRE envia ao HOST (mesmo que seja local)
 	if server.ID != room.ServerID {
-		// Não sou o host, encaminho
+		// Não sou o host, encaminho via REST
 		log.Printf("[Global] Encaminhando ao HOST (server%d)...", room.ServerID)
 		forwardCardToHost(room.ServerID, gameMsg)
 	} else {
-		// Sou o host, armazeno e calculo
+		// Sou o host, processo localmente
+		log.Printf("[Global] Sou o HOST, processando carta...")
 		processHostCard(server, room, gameMsg, nc)
 	}
 }
-
-// processHostCard: HOST armazena carta e calcula resultado se possível
+// HOST armazena carta e calcula resultado
 func processHostCard(server *models.Server, room *shared.GameRoom, gameMsg shared.GameMessage, nc *nats.Conn) {
 	if room.PlayersCards == nil {
 		room.PlayersCards = make(map[string]shared.Card)
@@ -115,15 +115,15 @@ func processHostCard(server *models.Server, room *shared.GameRoom, gameMsg share
 		return
 	}
 
-	log.Printf("[HOST] 🎯 Sala pointer: %p", room)
-	log.Printf("[HOST] 🎯 PlayersCards pointer: %p", room.PlayersCards)
+	//log.Printf("[HOST] Sala pointer: %p", room)
+	//log.Printf("[HOST] PlayersCards pointer: %p", room.PlayersCards)
 
 	room.PlayersCards[gameMsg.From] = card
 	log.Printf("[HOST] Carta armazenada: %s -> %s (%d/2)", gameMsg.From, card.Element, len(room.PlayersCards))
 
-	log.Printf("[HOST] 📝 Carta armazenada: %s -> %s", gameMsg.From, card.Element)
-	log.Printf("[HOST] 📊 Estado atual: %v", room.PlayersCards)
-	log.Printf("[HOST] 📊 Total: %d/2", len(room.PlayersCards))
+	//log.Printf("[HOST] Carta armazenada: %s -> %s", gameMsg.From, card.Element)
+	//log.Printf("[HOST] Estado atual: %v", room.PlayersCards)
+	log.Printf("[HOST] Total: %d/2", len(room.PlayersCards))
 
 	// Se ambos jogaram, calcula resultado
 	if len(room.PlayersCards) == 2 {
@@ -163,7 +163,7 @@ func sendCardToOpponentServer(serverID int, clientID string, gameMsg shared.Game
 	}
 	defer resp.Body.Close()
 	
-	log.Printf("[REST] Carta enviada para server%d -> cliente %s", serverID, clientID)
+	//log.Printf("[REST] Carta enviada para server%d -> cliente %s", serverID, clientID)
 }
 
 func forwardCardToHost(hostServerID int, gameMsg shared.GameMessage) {
@@ -214,7 +214,7 @@ func HandleForwardCard(server *models.Server, nc *nats.Conn) http.HandlerFunc {
 	}
 }
 
-// HandleForwardToHost: HOST recebe carta de servidor remoto
+// HOST recebe carta de servidor remoto
 func HandleForwardToHost(server *models.Server, nc *nats.Conn) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		var payload struct {
@@ -229,9 +229,9 @@ func HandleForwardToHost(server *models.Server, nc *nats.Conn) http.HandlerFunc 
 		log.Printf("[REST-HOST] Carta recebida: sala %s, jogador %s", 
 			payload.GameMsg.RoomID, payload.GameMsg.From)
 		
-		server.FSM.GlobalRoomsMu.Lock()
+		server.FSM.GlobalRoomsMu.RLock()
 		room, exists := server.FSM.GlobalRooms[payload.GameMsg.RoomID]
-		server.FSM.GlobalRoomsMu.Unlock()
+		server.FSM.GlobalRoomsMu.RUnlock()
 		
 		if !exists {
 			log.Printf("[REST-HOST] Sala não encontrada")
@@ -239,14 +239,14 @@ func HandleForwardToHost(server *models.Server, nc *nats.Conn) http.HandlerFunc 
 			return
 		}
 		
-		// Processa como host
+		// APENAS processa como host, NÃO notifica oponente de novo!
 		processHostCard(server, room, payload.GameMsg, nc)
 		
 		w.WriteHeader(http.StatusOK)
 	}
 }
 
-// HandleForwardResult: encaminha resultado para cliente remoto (reutiliza HandleForwardCard)
+// encaminha resultado para cliente remoto 
 func notifyPlayerResult(server *models.Server, nc *nats.Conn, room *shared.GameRoom, result string, playerID string, playerServerID int) {
 	var winner *shared.User
 	switch result {
@@ -265,7 +265,6 @@ func notifyPlayerResult(server *models.Server, nc *nats.Conn, room *shared.GameR
 	}
 
 	if playerServerID != server.ID {
-		// Envia via REST
 		url := fmt.Sprintf("http://server%d:800%d/forward-result", playerServerID, playerServerID)
 		
 		payload := map[string]interface{}{
@@ -283,7 +282,6 @@ func notifyPlayerResult(server *models.Server, nc *nats.Conn, room *shared.GameR
 		
 		log.Printf("[REST] Resultado enviado para server%d -> cliente %s", playerServerID, playerID)
 	} else {
-		// Cliente local, usa NATS
 		data, _ := json.Marshal(resultMsg)
 		topic := fmt.Sprintf("server.%d.client.%s", server.ID, playerID)
 		nc.Publish(topic, data)
