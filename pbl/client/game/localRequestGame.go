@@ -14,33 +14,42 @@ import (
 	"github.com/nats-io/nats.go"
 )
 
-//preciso da parte das cartas primeiro pra continuar implementando isso aqui
 func ChooseCard(user shared.User) (shared.Card, bool) {
-	
-	utils.ListCardsDeck(&user)
 	cards := user.Deck
+	
+	for {
+		utils.ListCardsDeck(&user)
+		fmt.Print("Insira a carta desejada (0 para sair): ")
 
-	fmt.Print("Insira a carta desejada (0 para sair): ")
+		choice := utils.ReadLineSafe()
+		choiceInt, err := strconv.Atoi(choice)
 
-	choice := utils.ReadLineSafe()
-	choiceInt, err := strconv.Atoi(choice) 
+		// Saída voluntária
+		if choiceInt == 0 {
+			user.Status = "available"
+			return shared.Card{}, false
+		}
 
-	if choiceInt == 0 {
-		user.Status = "available"
-    	return shared.Card{}, false //saída voluntária do usuário
+		// Validação da escolha
+		if err != nil {
+			fmt.Println("Entrada inválida! Digite apenas números.")
+			fmt.Println()
+			continue
+		}
+
+		if choiceInt < 0 || choiceInt > len(cards) {
+			fmt.Printf("Número inválido! Escolha entre 1 e %d (ou 0 para sair).\n", len(cards))
+			fmt.Println()
+			continue
+		}
+
+		// Escolha válida
+		selected := cards[choiceInt-1]
+		return selected, true
 	}
-
-	if err != nil || choiceInt < 1 || choiceInt > len(cards) {
-		fmt.Println("Escolha inválida!")
-		return shared.Card{}, false
-	}
-
-	selected := cards[choiceInt-1]
-	return selected, true
 }
 
 func SendCardPlayLocal(nc *nats.Conn, room *shared.GameRoom, fromUserID string, card shared.Card) {
-	log.Println("\033[31mpucou o sendcard paly local\033[0m")
 	dataBytes, _ := json.Marshal(card)
 
 	gameMsg := shared.GameMessage{
@@ -209,12 +218,10 @@ func PlayLocalGame(nc *nats.Conn, room *shared.GameRoom, currentUser shared.User
 				alreadyPlayed = false
 				gameOver = true
 
-			case "GAME_OVER":
-				fmt.Println("\nJogo finalizado!")
-				gameOver = true
 			}
 
-		case <-time.After(90 * time.Second):
+	
+		case <-time.After(30 * time.Second):
 			fmt.Println("\nTimeout: servidor não respondeu.")
 			gameOver = true
 		}

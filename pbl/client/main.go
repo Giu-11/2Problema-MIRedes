@@ -35,11 +35,20 @@ func main() {
 	chosenServer := servers[chooseInt-1]
 	fmt.Printf("\nVocê escolheu: %s (ID=%d)\n", chosenServer.Name, chosenServer.ID)
 
-	nc, err := nats.Connect(chosenServer.NATS)
-	if err != nil {
+	nc, err := nats.Connect(chosenServer.NATS, nats.MaxReconnects(0), 
+		nats.DisconnectErrHandler(func(nc *nats.Conn, err error){
+			fmt.Println("CONEXÃO PERDIDA COM O SERVER")
+			if err != nil {
+				log.Fatalf("Erro ao conectar no NATS do servidor escolhido: %v", err)
+			}
+			fmt.Println("Cliente encerrando em 2 segundos...")
+			time.Sleep(2*time.Second)
+			os.Exit(1)
+		}),
+	)
+	if err != nil{
 		log.Fatalf("Erro ao conectar no NATS do servidor escolhido: %v", err)
 	}
-	defer nc.Close()
 	fmt.Println("Conectado ao NATS do servidor escolhido:", chosenServer.NATS)
 
 	clientID := fmt.Sprintf("cliente%d", utils.GerarIdAleatorio())
@@ -388,6 +397,7 @@ func choseDeck(cards []shared.Card) []shared.Card{
 			}
 		}
 	}
+	
 	return deck
 }
 

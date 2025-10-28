@@ -109,7 +109,7 @@ func MostrarInventario(cartas []shared.Card){
 	fmt.Println("             Suas Cartas             ")
 	fmt.Println("----------------------------------")
 	for i,carta := range cartas{
-		fmt.Printf("[%d] - ", i)
+		fmt.Printf("[%d] - ", i+1)
 		PrintCartaCor(carta)
 		fmt.Print("\n")
 	}
@@ -121,7 +121,7 @@ func ListCardsDeck(user *shared.User) {
 	fmt.Println("             Seu deck             ")
 	fmt.Println("----------------------------------")
 	for i,carta := range user.Deck{
-		fmt.Printf("[%d] - ", i)
+		fmt.Printf("[%d] - ", i+1)
 		PrintCartaCor(carta)
 		fmt.Print("\n")
 	}

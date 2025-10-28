@@ -1,18 +1,18 @@
 package handlers
 
 import (
-	"bytes"
-	"encoding/json"
 	"fmt"
 	"log"
-	"net/http"
 	"time"
+	"bytes"
+	"net/http"
+	"encoding/json"
 
+	"pbl/shared"
 	"pbl/server/game"
+	"pbl/server/utils"
 	"pbl/server/models"
 	sharedRaft "pbl/server/shared"
-	"pbl/server/utils"
-	"pbl/shared"
 
 	"github.com/hashicorp/raft"
 	"github.com/nats-io/nats.go"

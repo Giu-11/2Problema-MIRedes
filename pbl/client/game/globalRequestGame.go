@@ -46,7 +46,7 @@ func HandleStartGlobalMatchListener(serverID int, nc *nats.Conn, clientID string
 				IsGlobal: true,
 			}
 
-			log.Printf("[Cliente] Nova partida global recebida! Sala: %s, Adversário: %s", room.ID, opponent.UserName)
+			//log.Printf("[Cliente] Nova partida global recebida! Sala: %s, Adversário: %s", room.ID, opponent.UserName)
 		}
 	})
 
@@ -74,7 +74,7 @@ func PlayGlobalGame(nc *nats.Conn, room *shared.GameRoom, currentUser shared.Use
 	gameMsgChan := make(chan shared.GameMessage, 10)
 
 	clientTopic := fmt.Sprintf("server.%d.client.%s", currentUser.ServerID, currentUser.UserId)
-	log.Printf("[Cliente] Inscrito no tópico: %s", clientTopic)
+	//log.Printf("[Cliente] Inscrito no tópico: %s", clientTopic)
 	
 	sub, err := nc.Subscribe(clientTopic, func(msg *nats.Msg) {
 		var gameMsg shared.GameMessage
@@ -82,7 +82,7 @@ func PlayGlobalGame(nc *nats.Conn, room *shared.GameRoom, currentUser shared.Use
 			log.Println("Erro ao decodificar mensagem:", err)
 			return
 		}
-		log.Printf("[Cliente] Mensagem recebida: Type=%s, From=%s", gameMsg.Type, gameMsg.From)
+		//log.Printf("[Cliente] Mensagem recebida: Type=%s, From=%s", gameMsg.Type, gameMsg.From)
 		gameMsgChan <- gameMsg
 	})
 	if err != nil {
@@ -152,14 +152,22 @@ func PlayGlobalGame(nc *nats.Conn, room *shared.GameRoom, currentUser shared.Use
 				alreadyPlayed = false
 				gameOver = true
 
-			case "GAME_OVER":
-				fmt.Println("\nJogo finalizado!")
+			case "MATCH_ERROR":
+				fmt.Println("\nERRO: A partida não pôde ser iniciada")
+				fmt.Println("Motivo: Sala não encontrada no servidor")
 				gameOver = true
-			}
 
-		case <-time.After(90 * time.Second):
+			case "OPPONENT_DISCONNECTED":
+				fmt.Println("\nVITÓRIA POR W.O.")
+				fmt.Println("Seu oponente desconectou!")
+				gameOver = true
+			}	
+
+		case <-time.After(30 * time.Second):
 			fmt.Println("\nTimeout: servidor não respondeu.")
+			fmt.Println("A partida foi cancelada.")
 			gameOver = true
+			break
 		}
 	}
 
