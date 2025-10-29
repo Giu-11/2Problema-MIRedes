@@ -20,13 +20,30 @@ docker-compose up --build
 > Este comando irá **construir a imagem do servidor** e **iniciá-lo em um container**.<br>
 > Para parar o servidor, pressione Ctrl + C no terminal.
 
-### 2. Parar e remover o container
+#### Parar e remover o container
 
 ```bash
 docker-compose down
 ```
 
 > Isso irá **parar e remover o container** criado pelo Compose.
+
+## 2. Rodando o cliente localmente no host
+
+1. Abra um **novo terminal**.
+2. Entre na pasta do cliente:
+
+```bash
+cd client
+```
+
+3. Execute o cliente com Go:
+
+```bash
+go run main.go
+```
+
+> O cliente irá se conectar ao servidor que está rodando no Docker.
 
 ---
 
