@@ -211,7 +211,7 @@ func menuCard(nc *nats.Conn, server models.ServerInfo, clientID string, user sha
 			handleClientSeeCards(nc, server, clientID)
 		case "2":
 			style.Clear()
-			handleChangeDeck(nc, server, clientID)
+			handleChangeDeck(nc, server, clientID, &user)
 		case "3":
 			style.Clear()
 			handleClientSeeDeck(nc, server, clientID)
@@ -338,7 +338,7 @@ func handleClientSeeCards(nc *nats.Conn, server models.ServerInfo, clientID stri
 	return nil
 }
 
-func handleChangeDeck(nc *nats.Conn, server models.ServerInfo, clientID string){
+func handleChangeDeck(nc *nats.Conn, server models.ServerInfo, clientID string, user *shared.User){
 	cards := handleClientSeeCards(nc, server, clientID)
 	deck := choseDeck(cards)
 	utils.MostrarInventario(deck)
@@ -368,6 +368,7 @@ func handleChangeDeck(nc *nats.Conn, server models.ServerInfo, clientID string){
 		return
 	}
 	if response.Status == "success"{
+		user.Deck = deck 
 		style.PrintVerd("Deck salvo!")
 	} else {
 		style.PrintVerm("Erro ao salvar deck, tente novamente")
