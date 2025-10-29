@@ -60,7 +60,14 @@ func HandleStartGlobalMatchListener(serverID int, nc *nats.Conn, clientID string
 }
 
 func PlayGlobalGame(nc *nats.Conn, room *shared.GameRoom, currentUser shared.User, opponent shared.User) {
+
 	fmt.Println("\nPARTIDA GLOBAL INICIADA")
+	fmt.Print("\n----------------------------------")
+	fmt.Printf("\nSala ID: %s", room.ID)
+	fmt.Print("\n----------------------------------")
+	fmt.Printf("\nPlayer1: %s", room.Player1.UserName)
+	fmt.Printf("\nPlayer2: %s", room.Player2.UserName)
+	fmt.Print("\n----------------------------------\n")
 
 	isMyTurn := room.Turn == currentUser.UserId
 	if isMyTurn {
@@ -152,15 +159,6 @@ func PlayGlobalGame(nc *nats.Conn, room *shared.GameRoom, currentUser shared.Use
 				alreadyPlayed = false
 				gameOver = true
 
-			case "MATCH_ERROR":
-				fmt.Println("\nERRO: A partida não pôde ser iniciada")
-				fmt.Println("Motivo: Sala não encontrada no servidor")
-				gameOver = true
-
-			case "OPPONENT_DISCONNECTED":
-				fmt.Println("\nVITÓRIA POR W.O.")
-				fmt.Println("Seu oponente desconectou!")
-				gameOver = true
 			}	
 
 		case <-time.After(30 * time.Second):
@@ -197,7 +195,7 @@ func SendCardPlayGlobal(nc *nats.Conn, room *shared.GameRoom, client shared.User
 	reqBytes, _ := json.Marshal(req)
 	topic := fmt.Sprintf("server.%d.requests", client.ServerID)
 
-	log.Printf("[DEBUG] Enviando jogada para o servidor %d (sala %s): %+v\n", client.ServerID, room.ID, card)
+	//log.Printf("[DEBUG] Enviando jogada para o servidor %d (sala %s): %+v\n", client.ServerID, room.ID, card)
 
 	nc.Publish(topic, reqBytes)
 }
