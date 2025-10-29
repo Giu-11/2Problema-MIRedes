@@ -176,7 +176,7 @@ func startGameLoop(nc *nats.Conn, server models.ServerInfo, clientID string, use
 
 		case "2":
 			style.Clear()
-			menuCard(nc, server, clientID, user)
+			menuCard(nc, server, clientID, &user)
 		case "3":
 			style.Clear()
 			handleClientDrawCard(nc, server, clientID)
@@ -201,7 +201,7 @@ func startGameLoop(nc *nats.Conn, server models.ServerInfo, clientID string, use
 	}
 }
 
-func menuCard(nc *nats.Conn, server models.ServerInfo, clientID string, user shared.User){
+func menuCard(nc *nats.Conn, server models.ServerInfo, clientID string, user *shared.User){
 	sair := false
 	for !sair{
 		option := utils.ShowMenuCards()
@@ -211,7 +211,7 @@ func menuCard(nc *nats.Conn, server models.ServerInfo, clientID string, user sha
 			handleClientSeeCards(nc, server, clientID)
 		case "2":
 			style.Clear()
-			handleChangeDeck(nc, server, clientID, &user)
+			handleChangeDeck(nc, server, clientID, user)
 		case "3":
 			style.Clear()
 			handleClientSeeDeck(nc, server, clientID)
