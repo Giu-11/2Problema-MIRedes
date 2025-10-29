@@ -15,36 +15,36 @@ func CheckWinner(card1, card2 shared.Card) string{
 		switch card2.Element{
 		case "AR", "FOGO":
 			return "EMPATE"
-		case "TERRA":
+		case "TERRA", "MATO":
 			return "GANHOU"
-		case "AGUA", "MATO":
+		case "AGUA":
 			return "PERDEU"
 		}
 	case "AGUA":
 		switch card2.Element {
 		case "TERRA", "AGUA":
 			return "EMPATE"
-		case "FOGO":
+		case "FOGO", "MATO":
 			return "GANHOU"
-		case "AR", "MATO":
+		case "AR":
 			return "PERDEU"
 		}
 	case "TERRA":
 		switch card2.Element {
 		case "AGUA", "TERRA":
 			return "EMPATE"
-		case "AR":
+		case "AR", "MATO":
 			return "GANHOU"
-		case "FOGO", "MATO":
+		case "FOGO":
 			return "PERDEU"
 		}
 	case "AR":
 		switch card2.Element {
 		case "FOGO", "AR":
 			return "EMPATE"
-		case "AGUA":
+		case "AGUA", "MATO":
 			return "GANHOU"
-		case "TERRA", "MATO":
+		case "TERRA":
 			return "PERDEU"
 		}
 	case "MATO": //carta do mal. Só empata ou perde✨
