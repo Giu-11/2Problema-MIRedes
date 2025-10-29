@@ -70,7 +70,7 @@ func SendCardPlayLocal(nc *nats.Conn, room *shared.GameRoom, fromUserID string, 
 	reqBytes, _ := json.Marshal(req)
 	topic := fmt.Sprintf("server.%d.requests", room.ServerID)
 
-	log.Printf("[DEBUG] Enviando jogada para o servidor %d (sala %s): %+v\n", room.ServerID, room.ID, card)
+	//log.Printf("[DEBUG] Enviando jogada para o servidor %d (sala %s): %+v\n", room.ServerID, room.ID, card)
 
 	nc.Publish(topic, reqBytes)
 }

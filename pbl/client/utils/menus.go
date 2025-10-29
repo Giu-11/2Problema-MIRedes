@@ -109,7 +109,7 @@ func MostrarInventario(cartas []shared.Card){
 	fmt.Println("             Suas Cartas             ")
 	fmt.Println("----------------------------------")
 	for i,carta := range cartas{
-		fmt.Printf("[%d] - ", i+1)
+		fmt.Printf("[%d] - ", i)
 		PrintCartaCor(carta)
 		fmt.Print("\n")
 	}
