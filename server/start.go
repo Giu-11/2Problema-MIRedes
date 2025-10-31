@@ -36,7 +36,7 @@ func StartServer(idString, port, peersEnv, natsURL string) error {
 	
 	// Configuração Raft
 	config := raft.DefaultConfig()
-	config.HeartbeatTimeout = 2000 * time.Millisecond  // ← Aumenta timeouts
+	config.HeartbeatTimeout = 2000 * time.Millisecond 
 	config.ElectionTimeout = 2000 * time.Millisecond
 	config.CommitTimeout = 1000 * time.Millisecond
 
@@ -67,7 +67,7 @@ func StartServer(idString, port, peersEnv, natsURL string) error {
 	}
 
 	fsm := fsm.NewFSM()
-	server.FSM = fsm // importante: associar FSM ao servidor
+	server.FSM = fsm 
 
 	ra, err := raft.NewRaft(config, fsm, logStore, logStore, snapshots, transport)
 	if err != nil {

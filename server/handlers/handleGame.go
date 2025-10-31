@@ -1,19 +1,32 @@
 package handlers
 
 import (
+	"bytes"
+	"encoding/json"
 	"fmt"
 	"log"
-	"time"
-	"bytes"
 	"net/http"
-	"encoding/json"
+	"time"
 
-	"pbl/shared"
 	"pbl/server/game"
 	"pbl/server/models"
+	"pbl/shared"
 
 	"github.com/nats-io/nats.go"
 )
+
+
+func getPeerURLByID(server *models.Server, targetID int) (string, error) {
+	// A lista server.Peers contém os IPs/URLs
+	// que vieram do Makefile
+	for _, peer := range server.Peers {
+		if peer.ID == targetID {
+			// O URL já vem com "http://"
+			return peer.URL, nil
+		}
+	}
+	return "", fmt.Errorf("peer com ID %d não encontrado na lista de peers", targetID)
+}
 
 // HandleGlobalGameMessage processa jogadas de cartas para salas globais
 func HandleGlobalGameMessage(server *models.Server, request shared.Request, nc *nats.Conn, msg *nats.Msg) {
@@ -23,9 +36,6 @@ func HandleGlobalGameMessage(server *models.Server, request shared.Request, nc *
 		return
 	}
 
-	//log.Printf("[Global] CARTA RECEBIDA no servidor %d: %s", server.ID, gameMsg.RoomID)
-
-	// MODIFICAÇÃO AQUI: Aguarda sala ser replicada com retry
 	var room *shared.GameRoom
 	var exists bool
 	
@@ -35,7 +45,6 @@ func HandleGlobalGameMessage(server *models.Server, request shared.Request, nc *
 		server.FSM.GlobalRoomsMu.RUnlock()
 		
 		if exists {
-			//log.Printf("[Global] Sala %s encontrada no servidor %d", gameMsg.RoomID, server.ID)
 			break
 		}
 		
@@ -52,7 +61,6 @@ func HandleGlobalGameMessage(server *models.Server, request shared.Request, nc *
 	processClientCard(server, room, gameMsg, nc)
 }
 
-// processa carta do cliente LOCAL
 func processClientCard(server *models.Server, room *shared.GameRoom, gameMsg shared.GameMessage, nc *nats.Conn) {
 	var card shared.Card
 	if err := json.Unmarshal(gameMsg.Data, &card); err != nil {
@@ -74,7 +82,7 @@ func processClientCard(server *models.Server, room *shared.GameRoom, gameMsg sha
 		opponentServerID = room.Server1ID
 	}
 
-	// 1. Notifica o oponente SEMPRE
+	// Notifica o oponente
 	turnMsg := shared.GameMessage{
 		Type:   "PLAY_CARD",
 		From:   gameMsg.From,
@@ -84,7 +92,7 @@ func processClientCard(server *models.Server, room *shared.GameRoom, gameMsg sha
 	}
 
 	if opponentServerID != server.ID {
-		sendCardToOpponentServer(opponentServerID, opponentID, turnMsg)
+		sendCardToOpponentServer(server, opponentServerID, opponentID, turnMsg)
 	} else {
 		dataTurn, _ := json.Marshal(turnMsg)
 		clientTopic := fmt.Sprintf("server.%d.client.%s", server.ID, opponentID)
@@ -92,19 +100,21 @@ func processClientCard(server *models.Server, room *shared.GameRoom, gameMsg sha
 		log.Printf("[Global] Oponente local notificado: %s", opponentID)
 	}
 
-	// 2. SEMPRE envia ao HOST (mesmo que seja local)
+	// envia ao HOST
 	if server.ID != room.ServerID {
 		// Não sou o host, encaminho via REST
 		log.Printf("[Global] Encaminhando ao HOST (server%d)...", room.ServerID)
-		forwardCardToHost(room.ServerID, gameMsg)
+		forwardCardToHost(server, room.ServerID, gameMsg)
 	} else {
 		// Sou o host, processo localmente
 		log.Printf("[Global] Sou o HOST, processando carta...")
 		processHostCard(server, room, gameMsg, nc)
 	}
 }
+
 // HOST armazena carta e calcula resultado
 func processHostCard(server *models.Server, room *shared.GameRoom, gameMsg shared.GameMessage, nc *nats.Conn) {
+	// ... (código igual) ...
 	if room.PlayersCards == nil {
 		room.PlayersCards = make(map[string]shared.Card)
 	}
@@ -115,17 +125,10 @@ func processHostCard(server *models.Server, room *shared.GameRoom, gameMsg share
 		return
 	}
 
-	//log.Printf("[HOST] Sala pointer: %p", room)
-	//log.Printf("[HOST] PlayersCards pointer: %p", room.PlayersCards)
-
 	room.PlayersCards[gameMsg.From] = card
 	log.Printf("[HOST] Carta armazenada: %s -> %s (%d/2)", gameMsg.From, card.Element, len(room.PlayersCards))
-
-	//log.Printf("[HOST] Carta armazenada: %s -> %s", gameMsg.From, card.Element)
-	//log.Printf("[HOST] Estado atual: %v", room.PlayersCards)
 	log.Printf("[HOST] Total: %d/2", len(room.PlayersCards))
 
-	// Se ambos jogaram, calcula resultado
 	if len(room.PlayersCards) == 2 {
 		cardP1 := room.PlayersCards[room.Player1.UserId]
 		cardP2 := room.PlayersCards[room.Player2.UserId]
@@ -134,81 +137,87 @@ func processHostCard(server *models.Server, room *shared.GameRoom, gameMsg share
 
 		resultP1 := game.CheckWinner(cardP1, cardP2)
 
-
-		// Notifica ambos
 		notifyPlayerResult(server, nc, room, resultP1, room.Player1.UserId, room.Server1ID)
 		notifyPlayerResult(server, nc, room, resultP1, room.Player2.UserId, room.Server2ID)
 
-		// Limpa cartas e resultados
 		room.PlayersCards = make(map[string]shared.Card)
 		resultP1 = ""
 		log.Printf("[HOST] Rodada finalizada")
 	}
 }
 
+func sendCardToOpponentServer(server *models.Server, serverID int, clientID string, gameMsg shared.GameMessage) {	
+	peerURL, err := getPeerURLByID(server, serverID)
+	if err != nil {
+		log.Printf("[REST] Erro ao encontrar peer %d: %v", serverID, err)
+		return
+	}
+	url := fmt.Sprintf("%s/forward-card", peerURL) 
 
-func sendCardToOpponentServer(serverID int, clientID string, gameMsg shared.GameMessage) {
-	url := fmt.Sprintf("http://server%d:800%d/forward-card", serverID, serverID)
-	
 	payload := map[string]interface{}{
 		"client_id": clientID,
 		"game_msg":  gameMsg,
 	}
-	
+
 	jsonData, _ := json.Marshal(payload)
 	resp, err := http.Post(url, "application/json", bytes.NewBuffer(jsonData))
 	if err != nil {
-		log.Printf("[REST] Erro ao enviar carta: %v", err)
+		log.Printf("[REST] Erro ao enviar carta para %s: %v", url, err)
 		return
 	}
 	defer resp.Body.Close()
-	
-	//log.Printf("[REST] Carta enviada para server%d -> cliente %s", serverID, clientID)
+
+	//log.Printf("[REST] Carta enviada para %s -> cliente %s", peerURL, clientID)
 }
 
-func forwardCardToHost(hostServerID int, gameMsg shared.GameMessage) {
-	url := fmt.Sprintf("http://server%d:800%d/forward-to-host", hostServerID, hostServerID)
+func forwardCardToHost(server *models.Server, hostServerID int, gameMsg shared.GameMessage) {
 	
+	hostURL, err := getPeerURLByID(server, hostServerID)
+	if err != nil {
+		log.Printf("[REST] Erro ao encontrar host peer %d: %v", hostServerID, err)
+		return
+	}
+	url := fmt.Sprintf("%s/forward-to-host", hostURL)
+
 	payload := map[string]interface{}{
 		"game_msg": gameMsg,
 	}
-	
+
 	jsonData, _ := json.Marshal(payload)
 	resp, err := http.Post(url, "application/json", bytes.NewBuffer(jsonData))
 	if err != nil {
-		log.Printf("[REST] Erro ao encaminhar ao host: %v", err)
+		log.Printf("[REST] Erro ao encaminhar ao host %s: %v", url, err)
 		return
 	}
 	defer resp.Body.Close()
-	
-	log.Printf("[REST] Carta encaminhada ao HOST server%d", hostServerID)
+
+	log.Printf("[REST] Carta encaminhada ao HOST %s", hostURL)
 }
 
 // Recebe carta de outro servidor para notificar cliente local
 func HandleForwardCard(server *models.Server, nc *nats.Conn) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		var payload struct {
-			ClientID string              `json:"client_id"`
-			GameMsg  shared.GameMessage  `json:"game_msg"`
+			ClientID string             `json:"client_id"`
+			GameMsg  shared.GameMessage `json:"game_msg"`
 		}
-		
+
 		if err := json.NewDecoder(r.Body).Decode(&payload); err != nil {
 			http.Error(w, "Invalid payload", http.StatusBadRequest)
 			return
 		}
-		
+
 		log.Printf("[REST] Carta recebida para cliente %s", payload.ClientID)
-		
-		// Publica para o cliente local via NATS
+
 		data, _ := json.Marshal(payload.GameMsg)
 		clientTopic := fmt.Sprintf("server.%d.client.%s", server.ID, payload.ClientID)
-		
+
 		if err := nc.Publish(clientTopic, data); err != nil {
 			log.Printf("[REST] Erro ao publicar: %v", err)
 			http.Error(w, "Failed to forward", http.StatusInternalServerError)
 			return
 		}
-		
+
 		log.Printf("[REST] Carta encaminhada ao cliente %s via NATS", payload.ClientID)
 		w.WriteHeader(http.StatusOK)
 	}
@@ -220,33 +229,31 @@ func HandleForwardToHost(server *models.Server, nc *nats.Conn) http.HandlerFunc 
 		var payload struct {
 			GameMsg shared.GameMessage `json:"game_msg"`
 		}
-		
+
 		if err := json.NewDecoder(r.Body).Decode(&payload); err != nil {
 			http.Error(w, "Invalid payload", http.StatusBadRequest)
 			return
 		}
-		
-		log.Printf("[REST-HOST] Carta recebida: sala %s, jogador %s", 
+
+		log.Printf("[REST-HOST] Carta recebida: sala %s, jogador %s",
 			payload.GameMsg.RoomID, payload.GameMsg.From)
-		
+
 		server.FSM.GlobalRoomsMu.RLock()
 		room, exists := server.FSM.GlobalRooms[payload.GameMsg.RoomID]
 		server.FSM.GlobalRoomsMu.RUnlock()
-		
+
 		if !exists {
 			log.Printf("[REST-HOST] Sala não encontrada")
 			http.Error(w, "Room not found", http.StatusNotFound)
 			return
 		}
-		
-		// APENAS processa como host, NÃO notifica oponente de novo!
+
 		processHostCard(server, room, payload.GameMsg, nc)
-		
+
 		w.WriteHeader(http.StatusOK)
 	}
 }
 
-// encaminha resultado para cliente remoto 
 func notifyPlayerResult(server *models.Server, nc *nats.Conn, room *shared.GameRoom, result string, playerID string, playerServerID int) {
 	var winner *shared.User
 	switch result {
@@ -264,23 +271,28 @@ func notifyPlayerResult(server *models.Server, nc *nats.Conn, room *shared.GameR
 		Winner: winner,
 	}
 
-	if playerServerID != server.ID {
-		url := fmt.Sprintf("http://server%d:800%d/forward-result", playerServerID, playerServerID)
-		
+	if playerServerID != server.ID {		
+		peerURL, err := getPeerURLByID(server, playerServerID)
+		if err != nil {
+			log.Printf("[REST] Erro ao encontrar peer %d para enviar resultado: %v", playerServerID, err)
+			return
+		}
+		url := fmt.Sprintf("%s/forward-result", peerURL) 
+
 		payload := map[string]interface{}{
 			"client_id": playerID,
 			"game_msg":  resultMsg,
 		}
-		
+
 		jsonData, _ := json.Marshal(payload)
 		resp, err := http.Post(url, "application/json", bytes.NewBuffer(jsonData))
 		if err != nil {
-			log.Printf("[REST] Erro ao enviar resultado: %v", err)
+			log.Printf("[REST] Erro ao enviar resultado para %s: %v", url, err)
 			return
 		}
 		defer resp.Body.Close()
-		
-		log.Printf("[REST] Resultado enviado para server%d -> cliente %s", playerServerID, playerID)
+
+		log.Printf("[REST] Resultado enviado para %s -> cliente %s", peerURL, playerID)
 	} else {
 		data, _ := json.Marshal(resultMsg)
 		topic := fmt.Sprintf("server.%d.client.%s", server.ID, playerID)

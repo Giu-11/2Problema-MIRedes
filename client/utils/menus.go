@@ -6,13 +6,13 @@ import (
 	"pbl/style"
 )
 
-//MENUS PARA BASE - sujeito a mudanças
+//MENUS
 
 func EscolherServidor() string {
 	fmt.Println("------------------------------")
 	fmt.Println("       Escolher servidor      ")
 	fmt.Println("------------------------------")
-	fmt.Println("1 - Servidor 1") //seria legal nomear os servidores
+	fmt.Println("1 - Servidor 1")
 	fmt.Println("2 - Servidor 2")
 	fmt.Println("3 - Servidor 3")
 	fmt.Println("Insira o servidor que deseja: ")
@@ -40,7 +40,7 @@ func ShowMenuPrincipal() string {
 	fmt.Println("3 - Abrir pacote")
 	fmt.Println("4 - Trocar cartas")
 	fmt.Println("5 - Visualizar regras")
-	fmt.Println("6 - Visualizar ping") //precisa?
+	fmt.Println("6 - Visualizar ping") 
 	fmt.Println("7 - Deslogar")
 	fmt.Print("Insira a opção desejada: ")
 	return ReadLineSafe()

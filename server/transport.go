@@ -46,7 +46,6 @@ func (t *HTTPTransport) AppendEntriesPipeline(id raft.ServerID, target raft.Serv
 	return nil, raft.ErrPipelineReplicationNotSupported
 }
 
-// TimeoutNow é a nova função que substitui AppendEntriesPipeline
 func (t *HTTPTransport) TimeoutNow(id raft.ServerID, target raft.ServerAddress, args *raft.TimeoutNowRequest, resp *raft.TimeoutNowResponse) error {
 	return t.sendRPC(target, "TimeoutNow", args, resp)
 }
@@ -69,7 +68,7 @@ func (t *HTTPTransport) Consumer() <-chan raft.RPC {
 }
 
 func (t *HTTPTransport) SetHeartbeatHandler(cb func(rpc raft.RPC)) {
-	// No-op. Todas as RPCs são tratadas da mesma forma.
+	// No-op. Todas as RPCs são tratadas da mesma forma
 }
 
 // ---- Funções Auxiliares ----

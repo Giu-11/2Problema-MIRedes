@@ -3,7 +3,6 @@ package sharedRaft
 import "encoding/json"
 
 // tipos de comando que podemos usar no log do Raft
-// const CommandRegisterUser = "REGISTER_USER"
 const(
 	CommandOpenPack   = "ABRIR_PACOTE"
 	CommandClaimCard  = "RESGATAR_CARTA"

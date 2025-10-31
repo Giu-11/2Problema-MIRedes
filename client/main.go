@@ -498,7 +498,6 @@ func startPingLoop(nc *nats.Conn, clientID string, serverTopic string) {
 				// tudo certo
 			case <-time.After(10 * time.Second):
 				fmt.Println("\nServidor não respondeu ao PING, tentando reconectar...")
-				// aqui você pode tentar reconectar ou alertar o usuário
 			}
 
 			time.Sleep(5 * time.Second) // envia PING a cada 5s

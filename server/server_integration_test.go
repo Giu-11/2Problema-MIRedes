@@ -25,14 +25,13 @@ const (
 	testTimeout = 15 * time.Second 
 )
 
-// --- Helper: O Cliente Falso ---
 
 // cliente falso
 type TestClient struct {
 	t        *testing.T       // Referência ao helper de teste
 	nc       *nats.Conn       // Conexão NATS real
 	clientID string           // ID único para este cliente
-	inbox    chan *nats.Msg   // Canal para onde o NATS envia mensagens (MATCH, etc)
+	inbox    chan *nats.Msg   // Canal para onde o NATS envia mensagens
 	sub      *nats.Subscription // A inscrição NATS
 	user     shared.User      // Dados do usuário após o login
 }
@@ -49,7 +48,7 @@ func newTestClient(t *testing.T) *TestClient {
 	}
 
 	clientID := "testclient-" + uuid.New().String()[:8]
-	inboxChan := make(chan *nats.Msg, 10) // Buffer maior
+	inboxChan := make(chan *nats.Msg, 10) 
 	clientTopic := fmt.Sprintf("client.%s.inbox", clientID)
 
 	sub, err := nc.Subscribe(clientTopic, func(msg *nats.Msg) {
@@ -116,7 +115,6 @@ func (c *TestClient) waitForMessage(timeout time.Duration) (*nats.Msg, error) {
 	}
 }
 
-// --- Ações do Cliente Falso ---
 
 // simula um cliente fazendo login.
 // Retorna 'true' em sucesso, 'false' em falha.
@@ -221,7 +219,7 @@ func (c *TestClient) joinQueue() bool {
 	return true
 }
 
-// --- OS TESTES ---
+//  OS TESTES
 
 // testa o fluxo de login e abertura de pacote (1 CLIENTE)
 func TestIntegration_OpenPack(t *testing.T) {

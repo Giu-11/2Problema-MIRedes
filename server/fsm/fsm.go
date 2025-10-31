@@ -1,14 +1,14 @@
 package fsm
 
 import (
-	"io"
-	"fmt"
-	"log"
-	"sync"
-	"time"
-	"math/big"
 	"crypto/rand"
 	"encoding/json"
+	"fmt"
+	"io"
+	"log"
+	"math/big"
+	"sync"
+	"time"
 
 	"pbl/server/cards"
 
@@ -299,28 +299,6 @@ func chooseRandomPlayerInt(a, b int) int {
 	return b
 }
 
-/*
-//virou inutil a função
-func (fsm *FSM) SendPlayerToLeaderQueue(entry shared.QueueEntry) {
-	if fsm.Raft == nil {
-		log.Println("[FSM] Raft não inicializado")
-		return
-	}
-
-	// Aplica o comando no Raft
-	cmd := sharedRaft.Command{
-		Type: sharedRaft.CommandQueueJoinGlobal,
-		Data: mustMarshal(entry),
-	}
-
-	future := fsm.Raft.Apply(mustMarshal(cmd), 5*time.Second)
-	if err := future.Error(); err != nil {
-		log.Printf("[FSM] Erro ao enviar jogador para líder: %v", err)
-		return
-	}
-
-	log.Printf("[FSM] Jogador %s enviado para líder", entry.Player.UserName)
-}*/
 
 func mustMarshal(v interface{}) []byte {
 	data, err := json.Marshal(v)
