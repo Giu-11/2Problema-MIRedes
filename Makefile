@@ -1,8 +1,8 @@
 # ==================== CONFIGURAÇÃO ====================
 # EDITE AQUI OS IPs DAS MÁQUINAS PARA PRODUÇÃO
-MACHINE1_IP ?= 172.16.201.16
-MACHINE2_IP ?= 172.16.201.15
-MACHINE3_IP ?= 172.16.201.1
+MACHINE1_IP ?= 1.1.1.1
+MACHINE2_IP ?= 2.2.2.2
+MACHINE3_IP ?= 3.3.3.3
 
 # Portas NATS para cada máquina
 NATS_PORT_1 := 4223
