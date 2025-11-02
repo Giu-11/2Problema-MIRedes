@@ -153,6 +153,45 @@ Para parar os servidores, use `Ctrl+C` nos terminais. Para parar os contêineres
 make stop-prod-nats
 ```
 
+## Testando o Servidor (Testes de Integração)
+
+O projeto inclui testes de integração (`server/server_integration_test.go`) que simulam múltiplos clientes "falsos" se conectando ao servidor para testar logins, abertura de pacotes e matchmaking (normal e de stress).
+
+**Importante:** Estes testes **exigem** que os servidores NATS e os servidores Raft estejam rodando. A forma mais fácil de fazer isso é usando o cenário de desenvolvimento local.
+
+### Como Rodar os Testes:
+
+1.  **Inicie os Servidores:** Abra 3 terminais e inicie os 3 servidores usando o `Makefile` (assim como no "Cenário 1: Rodando Localmente"):
+
+      * **Terminal 1:** `make run-pair1`
+      * **Terminal 2:** `make run-pair2`
+      * **Terminal 3:** `make run-pair3`
+
+2.  **Aguarde a Eleição:** Espere alguns segundos para os servidores se conectarem e elegerem um líder.
+
+3.  **Rode os Testes:** Abra um **quarto terminal** na raiz do projeto e execute:
+
+    ```bash
+    # Navega até a pasta do servidor e roda os testes com verbose
+    cd server
+    go test -v
+    ```
+
+    *ou, da raiz do projeto:*
+
+    ```bash
+    go test ./server/ -v
+    ```
+
+    > O `-v` (verbose) é importante para ver os logs em tempo real, como "Cliente A entrou na fila..." e os resultados dos testes de stress.
+
+4.  **(Opcional) Rodar um Teste Específico:** Para rodar apenas um teste (ex: o de stress de matchmaking), use a flag `-run`:
+
+    ```bash
+    # Estando na pasta 'server/'
+    go test -v -run TestIntegration_StressMatchmaking
+    ```
+
 -----
 
 ## Outros Comandos `Makefile`
@@ -175,4 +214,7 @@ make stop-all-nats
 ```bash
 # Mostra a lista de todos os comandos
 make help
+```
+
+```
 ```
