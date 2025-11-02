@@ -89,9 +89,9 @@ Antes de tudo, você **deve** dizer ao código quais são os IPs das suas máqui
     ```makefile
     # ==================== CONFIGURAÇÃO ====================
     # EDITE AQUI OS IPs DAS MÁQUINAS PARA PRODUÇÃO
-    MACHINE1_IP ?= 172.16.201.16
-    MACHINE2_IP ?= 172.16.201.15
-    MACHINE3_IP ?= 172.16.201.1
+    MACHINE1_IP ?= 1.1.1.1
+    MACHINE2_IP ?= 2.2.2.2
+    MACHINE3_IP ?= 3.3.3.3
     # ...
     ```
 
@@ -100,9 +100,9 @@ Antes de tudo, você **deve** dizer ao código quais são os IPs das suas máqui
     ```go
     // ... em client/main.go
     servers := []models.ServerInfo{
-        {ID: 1, Name: "Servidor 1", NATS: "nats://172.16.201.16:4223"},
-        {ID: 2, Name: "Servidor 2", NATS: "nats://172.16.201.15:4224"},
-        {ID: 3, Name: "Servidor 3", NATS: "nats://172.16.201.1:4225"},
+        {ID: 1, Name: "Servidor 1", NATS: "nats://1.1.1.1:4223"},
+        {ID: 2, Name: "Servidor 2", NATS: "nats://2.2.2.2:4224"},
+        {ID: 3, Name: "Servidor 3", NATS: "nats://3.3.3.3:4225"},
     }
     // ...
     ```
